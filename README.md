@@ -72,7 +72,7 @@ Install these tools before cloning the repository:
 - Apache Tomcat 9.x. Do not use Tomcat 10+.
 - Microsoft SQL Server 2019 or newer with SQL authentication enabled.
 - Microsoft ODBC Driver and `sqlcmd` utilities for SQL Server.
-- Node.js 20.9+ and npm.
+- Node.js 22.6+ and npm.
 
 Confirm that the tools are available:
 

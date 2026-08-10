@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.mycompany.website.ban.ve.xem.phim.config.AppConstants;
 import com.mycompany.website.ban.ve.xem.phim.controller.system.SystemPortalServlet;
 import com.mycompany.website.ban.ve.xem.phim.model.User;
+import com.mycompany.website.ban.ve.xem.phim.service.AdminService;
 import com.mycompany.website.ban.ve.xem.phim.service.CinemaCapabilityPolicy;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -14,6 +15,7 @@ import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletException;
@@ -29,7 +31,7 @@ class AdminMappedGetRouteContractTest {
     void mappedCustomContentGetRedirectsToCanonicalEditor() throws Exception {
         Exchange exchange = new Exchange("/admin/custom-content");
 
-        new ManagerPortalServlet().doGet(exchange.request, exchange.response);
+        servlet().doGet(exchange.request, exchange.response);
 
         assertEquals(
                 CONTEXT_PATH + "/admin/films?tab=custom",
@@ -41,7 +43,7 @@ class AdminMappedGetRouteContractTest {
     void managerMappedCustomContentGetRedirectsToCinemaScopedEditor() throws Exception {
         Exchange exchange = new Exchange("/admin/custom-content", "manager", 1, "GET");
 
-        new ManagerPortalServlet().doGet(exchange.request, exchange.response);
+        servlet().doGet(exchange.request, exchange.response);
 
         assertEquals(CONTEXT_PATH + "/admin/films?tab=custom", exchange.redirect);
     }
@@ -80,7 +82,7 @@ class AdminMappedGetRouteContractTest {
                 "/impact",
                 Map.of("roomId", "1"));
 
-        new ManagerPortalServlet().doGet(exchange.request, exchange.response);
+        servlet().doGet(exchange.request, exchange.response);
 
         assertEquals(
                 "application/json;charset=UTF-8",
@@ -108,7 +110,7 @@ class AdminMappedGetRouteContractTest {
         for (String path : GLOBAL_CONTENT_ROUTES) {
             Exchange exchange = new Exchange(path, "manager", 1, "GET");
 
-            new ManagerPortalServlet().doGet(exchange.request, exchange.response);
+            servlet().doGet(exchange.request, exchange.response);
 
             assertEquals(HttpServletResponse.SC_FORBIDDEN, exchange.status,
                     "GET " + path + " phai 403 voi manager");
@@ -120,7 +122,7 @@ class AdminMappedGetRouteContractTest {
         for (String path : GLOBAL_CONTENT_ROUTES) {
             Exchange exchange = new Exchange(path, "manager", 1, "POST");
 
-            new ManagerPortalServlet().doPost(exchange.request, exchange.response);
+            servlet().doPost(exchange.request, exchange.response);
 
             assertEquals(HttpServletResponse.SC_FORBIDDEN, exchange.status,
                     "POST " + path + " phai 403 voi manager");
@@ -131,6 +133,34 @@ class AdminMappedGetRouteContractTest {
         "/admin/content/about-us", "/admin/about-us",
         "/admin/content/terms-of-use", "/admin/terms-of-use",
     };
+
+    private static ManagerPortalServlet servlet() {
+        return new ManagerPortalServlet(new StubAdminService());
+    }
+
+    private static final class StubAdminService extends AdminService {
+        @Override
+        public List<com.mycompany.website.ban.ve.xem.phim.model.Cinema> listCinemas() {
+            return List.of();
+        }
+
+        @Override
+        public int getUnreadNotificationCount(User actor) {
+            return 0;
+        }
+
+        @Override
+        public Map<String, Object> getRoomDeleteImpactInfo(int roomId, User actor) {
+            return Map.of(
+                    "roomName", "Contract room",
+                    "status", "active",
+                    "cinemaName", "Contract cinema",
+                    "showtimeCount", 0,
+                    "activeShowtimeCount", 0,
+                    "totalTicketCount", 0,
+                    "pendingTicketCount", 0);
+        }
+    }
 
     private static String managerPortalSource() throws IOException {
         return Files.readString(Path.of("src", "main", "java", "com", "mycompany", "website",

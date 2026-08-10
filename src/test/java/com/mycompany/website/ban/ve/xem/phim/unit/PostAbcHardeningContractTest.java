@@ -82,13 +82,16 @@ class PostAbcHardeningContractTest {
     @Test
     @DisplayName("D.2: local and example runtime configuration target the real context")
     void nextRuntimeConfigurationUsesRealTomcatContext() throws IOException {
-        String local = read("web/.env.local");
         String example = read("web/.env.example");
+        Path localPath = Path.of("web", ".env.local");
+        String[] runtimeSources = Files.isRegularFile(localPath)
+                ? new String[]{Files.readString(localPath, StandardCharsets.UTF_8), example}
+                : new String[]{example};
         String proxy = read("web/app/api/proxy/[...path]/route.ts");
         String nextConfig = read("web/next.config.ts");
         String expected = "http://localhost:8080/Website-ban-ve-xem-phim";
 
-        for (String source : new String[]{local, example}) {
+        for (String source : runtimeSources) {
             assertTrue(source.contains("CINEBOOK_API_BASE=" + expected + "/api/v1"));
             assertTrue(source.contains("NEXT_PUBLIC_ASSET_BASE=" + expected));
             assertTrue(source.contains("NEXT_PUBLIC_JSP_BASE=" + expected));

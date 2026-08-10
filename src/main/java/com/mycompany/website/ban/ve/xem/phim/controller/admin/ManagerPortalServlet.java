@@ -66,9 +66,17 @@ import javax.servlet.http.Part;
 )
 public class ManagerPortalServlet extends BasePortalServlet {
     private static final Logger LOGGER = Logger.getLogger(ManagerPortalServlet.class.getName());
-    private final AdminService adminService = new AdminService();
+    private final AdminService adminService;
     private final PolicyDocumentService policyService = new PolicyDocumentService();
     private final CinemaContentService cinemaContentService = new CinemaContentService();
+
+    public ManagerPortalServlet() {
+        this(new AdminService());
+    }
+
+    ManagerPortalServlet(AdminService adminService) {
+        this.adminService = adminService;
+    }
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)

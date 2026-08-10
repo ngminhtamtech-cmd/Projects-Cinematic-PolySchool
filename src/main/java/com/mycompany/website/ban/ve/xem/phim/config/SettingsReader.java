@@ -61,7 +61,7 @@ public final class SettingsReader {
                     }
                 }
             }
-        } catch (SQLException ex) {
+        } catch (SQLException | RuntimeException ex) {
             LOG.warning("SettingsReader: khong doc duoc '" + key + "' (" + ex.getMessage()
                     + "), dung mac dinh " + defaultValue + ".");
         }
