@@ -1,0 +1,5 @@
+Xin chào {{name}},
+
+Đơn thanh toán tại quầy #{{orderId}} sẽ hết hạn lúc {{expiresAt}}.
+Mã vé: {{ticketCode}}
+Vui lòng hoàn tất thanh toán trước thời hạn để giữ ghế.

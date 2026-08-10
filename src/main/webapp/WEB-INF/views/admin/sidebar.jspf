@@ -1,0 +1,259 @@
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="cbf" uri="https://cinebook.local/functions" %>
+<a class="admin-skip-link" href="#adminMainContent">Bỏ qua điều hướng</a>
+<aside class="sidebar" id="adminSidebar" aria-label="Điều hướng quản trị">
+    <div class="sidebar-header">
+        <a href="${pageContext.request.contextPath}/admin/dashboard" class="brand">
+            <span class="logo-symbol">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;"><path d="M3 4h18v16H3zM7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>
+            </span>
+            <span class="brand-text-wrap" style="display:flex;flex-direction:column;line-height:1.2;">
+                <strong style="font-size:15px;font-weight:600;letter-spacing:-0.01em;color:#1A1A21;">CineBook</strong>
+                <span class="brand-sub" style="font-size:11px;color:#8A8A96;">Quản trị bán vé</span>
+            </span>
+        </a>
+        
+        <!-- Sidebar Collapse Toggle (ChatGPT Style) -->
+        <div class="collapse-toggle" data-title="Thu gọn thanh bên">
+            <button type="button" id="sidebarToggleBtn" onclick="toggleSidebar()" title="Thu gọn / Mở rộng thanh bên" aria-label="Thu gọn hoặc mở rộng thanh bên">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="3.5"/>
+                    <line x1="9" y1="3" x2="9" y2="21"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="sidebar-nav" id="adminSidebarNav">
+        <!-- Group 1: TỔNG QUAN -->
+        <div class="sidebar-single-item ${pageContext.request.servletPath eq '/admin/dashboard' ? 'is-active-group' : ''}" data-title="Tổng quan">
+            <a class="sidebar-category-toggle ${pageContext.request.servletPath eq '/admin/dashboard' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/dashboard" title="Tổng quan">
+                <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5M5.5 9.5V20h13V9.5"/></svg>
+                <span class="sidebar-category-title">Tổng quan</span>
+            </a>
+        </div>
+
+        <!-- Group 1b: THÔNG BÁO -->
+        <div class="sidebar-single-item ${pageContext.request.servletPath eq '/admin/notifications' ? 'is-active-group' : ''}" data-title="Thông báo">
+            <a class="sidebar-category-toggle ${pageContext.request.servletPath eq '/admin/notifications' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/notifications" title="Thông báo">
+                <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9M10 19a2 2 0 0 0 4 0"/></svg>
+                <span class="sidebar-category-title">Thông báo</span>
+                <c:if test="${not empty unreadNotificationCount and unreadNotificationCount > 0}">
+                    <span class="sidebar-badge" id="sidebarNotificationBadge" style="margin-left:auto;background:#C81E1E;color:#fff;font-size:11px;font-weight:600;padding:2px 6px;border-radius:10px;line-height:1;display:inline-flex;align-items:center;justify-content:center;">${fn:escapeXml(unreadNotificationCount)}</span>
+                </c:if>
+            </a>
+        </div>
+
+        <!-- Group 2: VẬN HÀNH -->
+        <c:set var="isOpsActive" value="${(pageContext.request.servletPath eq '/admin/films' and not (param.tab eq 'custom')) or pageContext.request.servletPath eq '/admin/cinemas' or pageContext.request.servletPath eq '/admin/rooms' or pageContext.request.servletPath eq '/admin/showtimes' or pageContext.request.servletPath eq '/admin/requests'}" />
+        <div class="sidebar-accordion ${isOpsActive ? 'is-active-group is-open' : ''}" id="sidebarGroup_ops" data-title="Vận hành">
+            <button type="button" class="sidebar-category-toggle" onclick="toggleSidebarGroup('ops')">
+                <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8H4zM4 6.5L8 3h3L7 6.5h4L15 3h3l-4 3.5h4a2 2 0 0 1 2 2V8H4v-.5z"/></svg>
+                <span class="sidebar-category-title">Vận hành</span>
+                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="sidebar-group-content">
+                <a class="${pageContext.request.servletPath eq '/admin/films' and not (param.tab eq 'custom') ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/films" title="Phim">Phim</a>
+                <a class="${pageContext.request.servletPath eq '/admin/cinemas' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/cinemas" title="Rạp / Cơ sở">Rạp / Cơ sở</a>
+                <a class="${pageContext.request.servletPath eq '/admin/rooms' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/rooms" title="Phòng chiếu">Phòng chiếu</a>
+                <a class="${pageContext.request.servletPath eq '/admin/showtimes' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/showtimes" title="Suất chiếu">Suất chiếu</a>
+                <a class="${pageContext.request.servletPath eq '/admin/requests' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/requests" title="Yêu cầu phê duyệt">Yêu cầu phê duyệt</a>
+            </div>
+        </div>
+
+        <!-- Group 3: KHÁCH HÀNG -->
+        <c:set var="isCustActive" value="${pageContext.request.servletPath eq '/admin/users' or pageContext.request.servletPath eq '/admin/staff' or pageContext.request.servletPath eq '/admin/comments' or pageContext.request.servletPath eq '/admin/appeals' or pageContext.request.servletPath eq '/admin/orders'}" />
+        <div class="sidebar-accordion ${isCustActive ? 'is-active-group is-open' : ''}" id="sidebarGroup_customers" data-title="Khách hàng">
+            <button type="button" class="sidebar-category-toggle" onclick="toggleSidebarGroup('customers')">
+                <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span class="sidebar-category-title">Khách hàng</span>
+                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="sidebar-group-content">
+                <a class="${pageContext.request.servletPath eq '/admin/users' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/users" title="Thành viên">Thành viên</a>
+                <a class="${pageContext.request.servletPath eq '/admin/staff' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/staff" title="Nhân viên quầy vé">Nhân viên quầy vé</a>
+                <a class="${pageContext.request.servletPath eq '/admin/comments' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/comments" title="Bình luận">Bình luận</a>
+                <a class="${pageContext.request.servletPath eq '/admin/appeals' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/appeals" title="Đơn kháng cáo">Đơn kháng cáo</a>
+                <a class="${pageContext.request.servletPath eq '/admin/orders' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/orders" title="Đơn vé">Đơn vé</a>
+            </div>
+        </div>
+
+        <!-- Group 4: KINH DOANH -->
+        <c:set var="isBizActive" value="${pageContext.request.servletPath eq '/admin/promotions' or pageContext.request.servletPath eq '/admin/combos' or pageContext.request.servletPath eq '/admin/reports'}" />
+        <div class="sidebar-accordion ${isBizActive ? 'is-active-group is-open' : ''}" id="sidebarGroup_business" data-title="Kinh doanh">
+            <button type="button" class="sidebar-category-toggle" onclick="toggleSidebarGroup('business')">
+                <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                <span class="sidebar-category-title">Kinh doanh</span>
+                <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="sidebar-group-content">
+                <a class="${pageContext.request.servletPath eq '/admin/promotions' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/promotions" title="Khuyến mãi">Khuyến mãi</a>
+                <a class="${pageContext.request.servletPath eq '/admin/combos' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/combos" title="Bắp nước & Combo">Bắp nước & Combo</a>
+                <a class="${pageContext.request.servletPath eq '/admin/reports' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/reports" title="Báo cáo">Báo cáo</a>
+            </div>
+        </div>
+
+        <!-- Group 5: nội dung marketing theo rạp; nội dung pháp lý chỉ admin -->
+        <c:if test="${sessionScope.currentUser.role eq 'admin' or sessionScope.currentUser.role eq 'manager'}">
+            <c:set var="isContentActive" value="${param.tab eq 'custom' or pageContext.request.servletPath eq '/admin/content/refund-policy' or pageContext.request.servletPath eq '/admin/content/about-us' or pageContext.request.servletPath eq '/admin/content/terms-of-use'}" />
+            <div class="sidebar-accordion ${isContentActive ? 'is-active-group is-open' : ''}" id="sidebarGroup_content" data-title="Nội dung">
+                <button type="button" class="sidebar-category-toggle" onclick="toggleSidebarGroup('content')">
+                    <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10 8 16 11 10 14 10 8"/></svg>
+                    <span class="sidebar-category-title">Nội dung</span>
+                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="sidebar-group-content">
+                    <c:if test="${sessionScope.currentUser.role eq 'admin'}">
+                        <a class="${pageContext.request.servletPath eq '/admin/content/about-us' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/content/about-us" title="Về Chúng Tôi">Về Chúng Tôi</a>
+                        <a class="${pageContext.request.servletPath eq '/admin/content/terms-of-use' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/content/terms-of-use" title="Thỏa thuận sử dụng">Thỏa thuận sử dụng</a>
+                    </c:if>
+                    <c:choose>
+                        <c:when test="${sessionScope.currentUser.role eq 'manager'}">
+                            <a class="${param.tab eq 'custom' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/films?tab=custom&sub=uudai" title="Ưu Đãi">Ưu Đãi</a>
+                        </c:when>
+                        <c:otherwise>
+                            <a class="${param.tab eq 'custom' and param.sub eq 'cinetag' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/films?tab=custom&sub=cinetag" title="CineTag# Merchandise">CineTag# Merchandise</a>
+                            <a class="${param.tab eq 'custom' and (param.sub eq 'gocdienanh' or param.sub eq 'corner') ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/films?tab=custom&sub=gocdienanh" title="Góc Điện Ảnh">Góc Điện Ảnh</a>
+                            <a class="${param.tab eq 'custom' and (param.sub eq 'uudai' or (param.sub eq 'event' and (empty param.section or param.section eq 'uu-dai'))) ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/films?tab=custom&sub=uudai" title="Ưu Đãi">Ưu Đãi</a>
+                            <a class="${param.tab eq 'custom' and (param.sub eq 'phimhay' or (param.sub eq 'event' and param.section eq 'phim-hay')) ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/films?tab=custom&sub=phimhay" title="Phim Hay Tháng">Phim Hay Tháng</a>
+                        </c:otherwise>
+                    </c:choose>
+                    <c:if test="${sessionScope.currentUser.role eq 'admin'}">
+                        <a class="${pageContext.request.servletPath eq '/admin/content/refund-policy' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/admin/content/refund-policy" title="Điều kiện hoàn tiền">Điều kiện hoàn tiền</a>
+                    </c:if>
+                </div>
+            </div>
+        </c:if>
+
+        <!-- Group 6: HỆ THỐNG (ADMIN ONLY) -->
+        <c:if test="${sessionScope.currentUser.role eq 'admin'}">
+            <c:set var="isSysActive" value="${pageContext.request.servletPath eq '/system/config' or pageContext.request.servletPath eq '/system/managers' or pageContext.request.servletPath eq '/system/audit-logs'}" />
+            <div class="sidebar-accordion ${isSysActive ? 'is-active-group is-open' : ''}" id="sidebarGroup_system" data-title="Hệ thống">
+                <button type="button" class="sidebar-category-toggle" onclick="toggleSidebarGroup('system')">
+                    <svg class="group-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span class="sidebar-category-title">Hệ thống</span>
+                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="sidebar-group-content">
+                    <a class="${pageContext.request.servletPath eq '/system/managers' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/system/managers" title="Tài khoản Quản lý">Tài khoản Quản lý</a>
+                    <a class="${pageContext.request.servletPath eq '/system/config' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/system/config" title="Cấu hình">Cấu hình</a>
+                    <a class="${pageContext.request.servletPath eq '/system/audit-logs' ? 'is-active' : ''}" href="${pageContext.request.contextPath}/system/audit-logs" title="Nhật ký hoạt động">Nhật ký hoạt động</a>
+                </div>
+            </div>
+        </c:if>
+    </div>
+
+    <!-- Sidebar User Panel & Navigation Footer -->
+    <div class="sidebar-footer">
+        <div class="sidebar-user-card" title="${fn:escapeXml(empty sessionScope.currentUser.fullName ? 'Admin' : sessionScope.currentUser.fullName)}">
+            <div style="position:relative;display:inline-block;flex-shrink:0;">
+                <c:choose>
+                    <c:when test="${not empty sessionScope.currentUser.avatar}">
+                        <img src="${fn:escapeXml(cbf:assetUrl(pageContext.request.contextPath, sessionScope.currentUser.avatar))}" alt="Avatar">
+                    </c:when>
+                    <c:otherwise>
+                        <div class="user-avatar-placeholder" style="width: 32px; height: 32px; line-height: 32px; font-size: 13px; font-weight: 700; border-radius: 50%; background: #6D28D9; color: #FFFFFF; text-align: center; flex:none;">
+                            ${fn:escapeXml(empty sessionScope.currentUser.fullName ? 'C' : sessionScope.currentUser.fullName.substring(0, 1).toUpperCase())}
+                        </div>
+                    </c:otherwise>
+                </c:choose>
+                <span style="position:absolute;bottom:0;right:0;width:8px;height:8px;background:#10B981;border:2px solid #FFFFFF;border-radius:50%;"></span>
+            </div>
+            <div class="user-meta">
+                <span class="user-name" style="font-weight:600;color:#1E293B;">${fn:escapeXml(empty sessionScope.currentUser.fullName ? 'CineBook Admin' : sessionScope.currentUser.fullName)}</span>
+                <span class="user-role" style="font-size:11px;color:#64748B;text-transform:capitalize;">${fn:escapeXml(empty sessionScope.currentUser.role ? 'Admin' : sessionScope.currentUser.role)}</span>
+            </div>
+        </div>
+        
+        <a href="${pageContext.request.contextPath}/home" title="Trang chủ" class="sidebar-footer-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M3 10.5 12 3l9 7.5M5.5 9.5V20h13V9.5"/></svg>
+            <span>Trang chủ</span>
+        </a>
+        <a href="${pageContext.request.contextPath}/logout" title="Đăng xuất" class="sidebar-footer-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M15 5H6v14h9M12 12h9M18 8l4 4-4 4"/></svg>
+            <span>Đăng xuất</span>
+        </a>
+    </div>
+</aside>
+
+<button type="button" class="admin-sidebar-overlay" aria-label="Đóng menu quản trị"></button>
+
+<script>
+    (function() {
+        var collapsed = localStorage.getItem('admin_sidebar_collapsed') === 'true';
+        if (collapsed) {
+            document.body.classList.add('sidebar-collapsed');
+        }
+
+        function getSidebarNav() {
+            return document.getElementById('adminSidebarNav') || document.getElementById('adminSidebar');
+        }
+
+        function restoreScroll() {
+            var nav = getSidebarNav();
+            if (!nav) return;
+            var savedScroll = sessionStorage.getItem('admin_sidebar_scroll_top');
+            if (savedScroll !== null) {
+                nav.scrollTop = parseInt(savedScroll, 10);
+            }
+        }
+
+        restoreScroll();
+        document.addEventListener('DOMContentLoaded', function() {
+            restoreScroll();
+            setTimeout(restoreScroll, 50);
+            setTimeout(restoreScroll, 200);
+        });
+        window.addEventListener('load', function() {
+            restoreScroll();
+        });
+
+        window.addEventListener('beforeunload', function() {
+            var nav = getSidebarNav();
+            if (nav) {
+                sessionStorage.setItem('admin_sidebar_scroll_top', nav.scrollTop);
+            }
+        });
+
+        var nav = getSidebarNav();
+        if (nav) {
+            nav.addEventListener('scroll', function() {
+                sessionStorage.setItem('admin_sidebar_scroll_top', nav.scrollTop);
+            });
+            nav.querySelectorAll('a').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    sessionStorage.setItem('admin_sidebar_scroll_top', nav.scrollTop);
+                });
+            });
+        }
+
+        var groups = ['ops', 'customers', 'business', 'content', 'system'];
+        groups.forEach(function(g) {
+            var el = document.getElementById('sidebarGroup_' + g);
+            if (!el) return;
+            var userState = sessionStorage.getItem('admin_sidebar_group_' + g);
+            if (userState === 'closed') {
+                el.classList.remove('is-open');
+            } else if (userState === 'open') {
+                el.classList.add('is-open');
+            }
+        });
+    })();
+
+    function toggleSidebar() {
+        var isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+        localStorage.setItem('admin_sidebar_collapsed', isCollapsed);
+    }
+
+    function toggleSidebarGroup(groupKey) {
+        var el = document.getElementById('sidebarGroup_' + groupKey);
+        if (!el) return;
+        var isOpen = el.classList.toggle('is-open');
+        sessionStorage.setItem('admin_sidebar_group_' + groupKey, isOpen ? 'open' : 'closed');
+        var nav = document.getElementById('adminSidebarNav') || document.getElementById('adminSidebar');
+        if (nav) {
+            sessionStorage.setItem('admin_sidebar_scroll_top', nav.scrollTop);
+        }
+    }
+</script>

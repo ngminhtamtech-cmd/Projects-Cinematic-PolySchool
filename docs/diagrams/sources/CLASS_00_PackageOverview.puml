@@ -1,0 +1,54 @@
+' =============================================================================
+'  CineBook — Package/Layer Overview (dependency giữa các tầng)
+'  Nguồn: báo cáo khảo sát Servlet/Service/DAO (package thực tế dưới
+'  src/main/java/com/mycompany/website/ban/ve/xem/phim/).
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 CLASS_00_PackageOverview.puml
+' =============================================================================
+@startuml CLASS_00_PackageOverview
+title Package / Layer Overview — CineBook
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+
+package "filter" {
+}
+package "controller\n(+ controller.auth/admin/staff/system/member/booking)" as pkg_controller {
+}
+package "api\n(+ api.v1, api.dto)" as pkg_api {
+}
+package "service\n(+ service.auth, service.payment)" as pkg_service {
+}
+package "dao\n(+ dao.impl)" as pkg_dao {
+}
+package "model" as pkg_model {
+}
+package "config" as pkg_config {
+}
+package "util" as pkg_util {
+}
+
+pkg_controller ..> pkg_service : gọi nghiệp vụ (JSP flow)
+pkg_controller ..> pkg_dao : catalog công khai\n(đọc trực tiếp, không qua Service)
+pkg_controller ..> pkg_model
+pkg_api ..> pkg_service
+pkg_api ..> pkg_dao : catalog công khai
+pkg_api ..> pkg_model
+filter ..> pkg_service : AuthFilter → AccountStateGuard
+filter ..> pkg_util : RequestContext, ScopeUtil
+pkg_service ..> pkg_dao
+pkg_service ..> pkg_model
+pkg_service ..> pkg_config : DBConnection, SettingsReader,\nSecuritySettings, DatabaseConfig
+pkg_dao ..> pkg_model
+pkg_dao ..> pkg_config : DBConnection (HikariCP)
+pkg_service ..> pkg_util : BusinessClock, QrCodeUtil,\nPasswordUtil, PasswordPolicy
+pkg_controller ..> pkg_util
+filter --> pkg_controller : chain trước khi tới Servlet\n(map /* — SecurityHeaderFilter…CsrfFilter)
+filter --> pkg_api
+
+note bottom of pkg_service
+  Không Spring/DI: Service/DAO đều "new" trực tiếp.
+  AdminService là ngoại lệ lớn — tự viết SQL qua
+  DBConnection cho phần lớn CRUD, KHÔNG qua tầng dao.
+end note
+@enduml

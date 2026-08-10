@@ -1,0 +1,1107 @@
+.seat-view3d-button {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 9px 18px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff8a1f 0%, #ff6a00 55%, #f04e00 100%);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(255, 106, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .28);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: filter 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.seat-view3d-button svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+}
+
+.seat-view3d-button:hover:not(:disabled) {
+    box-shadow: 0 12px 26px rgba(255, 106, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .3);
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+}
+
+.seat-view3d-button:focus-visible {
+    outline: 3px solid rgba(255, 122, 0, .32);
+    outline-offset: 3px;
+}
+
+.seat-view3d-button:disabled {
+    border-color: #d9dee8;
+    background: #eef1f5;
+    color: #929bac;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------ *
+ * Shared 3D auditorium — booking, admin and manager all mount this.
+ * The room is a real CSS 3D world: .cb-seat3d__stage holds the
+ * perspective, .cb-seat3d__world carries the camera matrix, and every
+ * surface below it is a plane placed in world coordinates by JS.
+ * ------------------------------------------------------------------ */
+
+.cb-seat3d {
+    --cb3d-accent: #ff7a00;
+    --cb3d-gold: #ffb34d;
+    --cb3d-violet: #8b5cf6;
+    --cb3d-bg: #04050a;
+    --cb3d-panel: rgba(14, 17, 26, .84);
+    --cb3d-line: rgba(255, 255, 255, .12);
+    --cb3d-text-dim: #97a0b3;
+    position: fixed;
+    z-index: 2600;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: radial-gradient(ellipse at 50% 0%, #0b1020 0%, #04050a 62%);
+    color: #f8fafc;
+    opacity: 0;
+    transition: opacity 180ms ease;
+}
+
+.cb-seat3d.is-open {
+    display: flex;
+}
+
+.cb-seat3d.is-ready {
+    opacity: 1;
+}
+
+html.cb-seat3d-open,
+body.cb-seat3d-open {
+    overflow: hidden !important;
+    max-width: 100vw;
+}
+
+.cb-seat3d__shell {
+    display: grid;
+    width: min(1580px, calc(100vw - 24px));
+    height: min(920px, calc(100vh - 24px));
+    min-height: min(620px, calc(100vh - 24px));
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 20px;
+    outline: none;
+    background: var(--cb3d-bg);
+    box-shadow: 0 40px 130px rgba(0, 0, 0, .86), 0 0 0 1px rgba(139, 92, 246, .08);
+    opacity: 0;
+    transform: scale(.92) translateY(18px);
+    transform-origin: var(--open-x, 50%) var(--open-y, 50%);
+    transition: transform 360ms cubic-bezier(.2, .8, .2, 1), opacity 200ms ease;
+}
+
+.cb-seat3d.is-ready .cb-seat3d__shell {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+}
+
+/* ------------------------------- header ------------------------------ */
+
+.cb-seat3d__header {
+    position: relative;
+    z-index: 30;
+    display: grid;
+    min-height: 74px;
+    grid-template-columns: auto minmax(190px, 1fr) auto auto;
+    align-items: center;
+    gap: 18px;
+    padding: 11px 16px 11px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    background: linear-gradient(180deg, rgba(23, 28, 43, .96) 0%, rgba(9, 11, 18, .96) 100%);
+}
+
+.cb-seat3d__header::after {
+    position: absolute;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, .5), rgba(255, 122, 0, .45), transparent);
+    content: '';
+}
+
+.cb-seat3d__brand {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    min-width: max-content;
+    color: #f8fafc;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .12em;
+}
+
+.cb-seat3d__brand-mark {
+    color: var(--cb3d-accent);
+}
+
+.cb-seat3d__identity {
+    min-width: 190px;
+}
+
+.cb-seat3d__eyebrow {
+    display: block;
+    margin-bottom: 2px;
+    color: #c4b5fd;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .14em;
+}
+
+.cb-seat3d__identity h2 {
+    margin: 0;
+    color: #fff;
+    font-size: 18px;
+    letter-spacing: -.02em;
+}
+
+.cb-seat3d__identity p {
+    margin: 2px 0 0;
+    color: var(--cb3d-text-dim);
+    font-size: 11px;
+}
+
+.cb-seat3d__instruction {
+    justify-self: center;
+    margin: 0;
+    padding: 6px 13px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .03);
+    color: #8f98aa;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.cb-seat3d__header-actions {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.cb-seat3d__film-field {
+    display: grid;
+    gap: 3px;
+    width: 220px;
+    color: #949daf;
+    font-size: 9px;
+    font-weight: 800;
+}
+
+.cb-seat3d__film-field[hidden] {
+    display: none;
+}
+
+.cb-seat3d__film-field select {
+    width: 100%;
+    height: 39px;
+    padding: 0 32px 0 12px;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 10px;
+    outline: none;
+    background: rgba(255, 255, 255, .05);
+    color: #fff;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.cb-seat3d__film-field select:focus-visible,
+.cb-seat3d__modes button:focus-visible,
+.cb-seat3d__reset:focus-visible,
+.cb-seat3d__close:focus-visible,
+.cb-seat3d__map-action:focus-visible,
+.cb-seat3d__done:focus-visible {
+    outline: 2px solid #c4b5fd;
+    outline-offset: 2px;
+}
+
+.cb-seat3d__modes {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, .45);
+}
+
+.cb-seat3d__modes button {
+    min-height: 34px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: #c8ced9;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+.cb-seat3d__modes button:hover {
+    color: #fff;
+}
+
+.cb-seat3d__modes button.is-active {
+    background: linear-gradient(135deg, #7c3aed, #5b21b6);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(196, 181, 253, .6), 0 6px 18px rgba(124, 58, 237, .34);
+}
+
+.cb-seat3d__reset,
+.cb-seat3d__close {
+    display: inline-grid;
+    width: 39px;
+    height: 39px;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 11px;
+    background: rgba(255, 255, 255, .05);
+    color: #d8dde7;
+    cursor: pointer;
+    transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.cb-seat3d__reset:hover,
+.cb-seat3d__close:hover {
+    border-color: rgba(255, 255, 255, .3);
+    background: rgba(255, 255, 255, .12);
+    color: #fff;
+}
+
+.cb-seat3d__reset svg,
+.cb-seat3d__close svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+}
+
+/* ------------------------------ viewport ----------------------------- */
+
+.cb-seat3d__viewport {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    isolation: isolate;
+    background:
+        radial-gradient(ellipse at 50% 4%, rgba(120, 140, 190, .16), transparent 46%),
+        linear-gradient(180deg, #070a12 0%, #03050a 52%, #010204 100%);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.cb-seat3d__viewport.is-dragging {
+    cursor: grabbing;
+}
+
+.cb-seat3d__ambient {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 50% 22%, rgba(206, 224, 255, .1), transparent 40%),
+        linear-gradient(90deg, rgba(0, 0, 0, .82), transparent 16%, transparent 84%, rgba(0, 0, 0, .82));
+    pointer-events: none;
+}
+
+/* The perspective root. It must be the direct parent of the world, and it
+   must never get overflow/filter/opacity or the browser flattens the room. */
+.cb-seat3d__stage {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    perspective: 1500px;
+    perspective-origin: 50% 50%;
+    pointer-events: none;
+}
+
+.cb-seat3d__world {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    transform-style: preserve-3d;
+    will-change: transform;
+}
+
+.cb-seat3d__surface,
+.cb-seat3d__screen-stage,
+.cb-seat3d__chair,
+.cb-seat3d__rowtag,
+.cb-seat3d__halo {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* Every shell plane points its front face into the room, so a camera that
+   orbits outside the box sees straight through the near walls and ceiling —
+   an automatic cutaway with no view-specific rules. */
+.cb-seat3d__surface {
+    overflow: hidden;
+    backface-visibility: hidden;
+    transform-style: flat;
+}
+
+.cb-seat3d__floor {
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(168, 196, 255, .2), transparent 46%),
+        repeating-linear-gradient(180deg, transparent 0 150px, rgba(255, 255, 255, .05) 150px 154px),
+        linear-gradient(180deg, #1a212e 0%, #131924 44%, #0a0e16 100%);
+    box-shadow: inset 0 0 200px rgba(0, 0, 0, .7);
+}
+
+.cb-seat3d__aisle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, rgba(90, 170, 255, .3) 0%, rgba(120, 190, 255, .1) 60%, transparent 100%);
+    box-shadow: 0 0 24px rgba(64, 150, 255, .3);
+}
+
+.cb-seat3d__aisle--center {
+    left: calc(50% - var(--aisle-half, 4%));
+    width: calc(var(--aisle-half, 4%) * 2);
+}
+
+.cb-seat3d__aisle--left,
+.cb-seat3d__aisle--right {
+    width: 4px;
+    background: linear-gradient(180deg, rgba(140, 200, 255, .75), rgba(90, 160, 255, .18) 70%, transparent);
+    box-shadow: 0 0 14px rgba(90, 170, 255, .8);
+}
+
+.cb-seat3d__aisle--left { left: calc(50% - var(--bank-half, 30%)); }
+.cb-seat3d__aisle--right { left: calc(50% + var(--bank-half, 30%)); }
+
+.cb-seat3d__ceiling {
+    background:
+        repeating-linear-gradient(90deg, transparent 0 118px, rgba(255, 255, 255, .02) 118px 120px),
+        linear-gradient(180deg, #10141f 0%, #070910 100%);
+}
+
+.cb-seat3d__ceiling i {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #eaf1ff;
+    box-shadow: 0 0 14px #dce6ff, 0 0 40px rgba(200, 220, 255, .55);
+}
+
+.cb-seat3d__ceiling i:nth-child(1) { top: 22%; left: 26%; }
+.cb-seat3d__ceiling i:nth-child(2) { top: 22%; left: 74%; }
+.cb-seat3d__ceiling i:nth-child(3) { top: 52%; left: 26%; }
+.cb-seat3d__ceiling i:nth-child(4) { top: 52%; left: 74%; }
+.cb-seat3d__ceiling i:nth-child(5) { top: 80%; left: 50%; }
+
+.cb-seat3d__wall {
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, .68), transparent 55%, rgba(0, 0, 0, .82)),
+        repeating-linear-gradient(90deg, #121724 0 46px, #0a0d16 46px 58px);
+}
+
+.cb-seat3d__wall i {
+    position: absolute;
+    top: 34%;
+    width: 5px;
+    height: 30%;
+    border-radius: 999px;
+    background: linear-gradient(180deg, transparent, rgba(124, 160, 240, .8), transparent);
+    box-shadow: 0 0 16px rgba(80, 130, 230, .6);
+}
+
+.cb-seat3d__wall i:nth-child(1) { left: 18%; }
+.cb-seat3d__wall i:nth-child(2) { left: 40%; }
+.cb-seat3d__wall i:nth-child(3) { left: 62%; }
+.cb-seat3d__wall i:nth-child(4) { left: 84%; }
+
+.cb-seat3d__backwall {
+    background:
+        radial-gradient(ellipse at 50% 22%, rgba(90, 120, 190, .16), transparent 55%),
+        linear-gradient(180deg, #0d111b 0%, #06080e 100%);
+}
+
+.cb-seat3d__backwall::after {
+    position: absolute;
+    top: 16%;
+    left: 50%;
+    width: 190px;
+    height: 62px;
+    border: 1px solid rgba(150, 180, 240, .35);
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(180, 210, 255, .22), rgba(20, 30, 50, .5));
+    box-shadow: 0 0 30px rgba(120, 170, 255, .28);
+    content: '';
+    transform: translateX(-50%);
+}
+
+.cb-seat3d__apron {
+    background:
+        linear-gradient(180deg, rgba(255, 190, 120, .12) 0%, transparent 26%),
+        linear-gradient(180deg, #14181f 0%, #090b11 60%, #04060a 100%);
+    box-shadow: inset 0 2px 0 rgba(255, 200, 140, .22);
+}
+
+/* ------------------------------- screen ------------------------------ */
+
+.cb-seat3d__screen-stage {
+    z-index: 4;
+}
+
+.cb-seat3d__screen-glow {
+    position: absolute;
+    inset: -18% -12% -24%;
+    background: radial-gradient(ellipse, rgba(214, 228, 255, .34) 0%, rgba(110, 135, 185, .12) 46%, transparent 74%);
+    filter: blur(26px);
+    pointer-events: none;
+}
+
+.cb-seat3d__screen-frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: 8px;
+    background: linear-gradient(135deg, #3a4152, #090b10 34%, #232936 78%, #050608);
+    box-shadow:
+        0 0 0 1px #000,
+        0 26px 60px rgba(0, 0, 0, .88),
+        0 0 90px rgba(200, 218, 255, .16);
+}
+
+.cb-seat3d__screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 3px;
+    background: #000;
+    box-shadow: inset 0 0 45px rgba(0, 0, 0, .82);
+}
+
+.cb-seat3d__screen::after {
+    position: absolute;
+    z-index: 3;
+    inset: 0;
+    background: linear-gradient(115deg, rgba(255, 255, 255, .06), transparent 24%, transparent 76%, rgba(255, 255, 255, .03));
+    content: '';
+    pointer-events: none;
+}
+
+.cb-seat3d__screen iframe {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #000;
+    /* The stage swallows pointers so drags always reach the camera; the
+       trailer itself stays clickable so the viewer can unmute it. */
+    pointer-events: auto;
+}
+
+.cb-seat3d__placeholder {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    background:
+        radial-gradient(circle at 50% 42%, rgba(255, 122, 0, .2), transparent 30%),
+        linear-gradient(135deg, #1a0b08, #06070b 60%, #100808);
+    color: #fff;
+    text-align: center;
+}
+
+.cb-seat3d__placeholder[hidden] {
+    display: none;
+}
+
+.cb-seat3d__placeholder span {
+    color: var(--cb3d-gold);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .2em;
+}
+
+.cb-seat3d__placeholder strong {
+    max-width: 90%;
+    font-size: 42px;
+    letter-spacing: -.02em;
+}
+
+.cb-seat3d__placeholder small {
+    color: #aeb6c7;
+    font-size: 14px;
+}
+
+/* -------------------------------- seats ------------------------------ */
+
+.cb-seat3d__seats,
+.cb-seat3d__rowtags {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    transform-style: preserve-3d;
+}
+
+/* The chair box spans from the floor point up to the top of the backrest, so
+   its bounding rect is the chair a viewer actually sees. Children are placed
+   against that box's top-left corner, which sits at chair-local (-33, -80). */
+.cb-seat3d__chair {
+    --chair-top: #6b7488;
+    --chair-bottom: #262c38;
+    --chair-edge: #8b94a6;
+    --chair-glow: transparent;
+    width: 66px;
+    height: 96px;
+    margin-top: -96px;
+    margin-left: -33px;
+    transform-style: preserve-3d;
+}
+
+.cb-seat3d__chair.is-behind-camera {
+    display: none;
+}
+
+.cb-seat3d__chair--vip {
+    --chair-top: #e8524b;
+    --chair-bottom: #7a181b;
+    --chair-edge: #ff8079;
+}
+
+.cb-seat3d__chair--couple {
+    --chair-top: #b04a72;
+    --chair-bottom: #4f1e36;
+    --chair-edge: #e07aa0;
+}
+
+.cb-seat3d__chair.is-occupied {
+    --chair-top: #383d47;
+    --chair-bottom: #14171d;
+    --chair-edge: #4a4f5a;
+}
+
+.cb-seat3d__chair.is-selected {
+    --chair-top: #ffa63a;
+    --chair-bottom: #b34600;
+    --chair-edge: #ffd79a;
+    --chair-glow: rgba(255, 150, 40, .75);
+}
+
+.cb-seat3d__chair-back {
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--chair-edge);
+    border-radius: 16px 16px 6px 6px;
+    background:
+        linear-gradient(90deg, rgba(0, 0, 0, .3), transparent 16%, transparent 84%, rgba(0, 0, 0, .34)),
+        linear-gradient(180deg, var(--chair-top) 0%, var(--chair-bottom) 100%);
+    box-shadow:
+        inset 0 4px 5px rgba(255, 255, 255, .18),
+        inset 0 -10px 12px rgba(0, 0, 0, .32),
+        0 0 18px var(--chair-glow);
+    transform: translateZ(26px) rotateX(-11deg);
+    transform-origin: 50% 100%;
+}
+
+.cb-seat3d__chair-back::after {
+    position: absolute;
+    right: 9px;
+    bottom: 8px;
+    left: 9px;
+    height: 2px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, .14);
+    content: '';
+}
+
+.cb-seat3d__chair-back b {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    color: rgba(255, 255, 255, .94);
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 900;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .85);
+    transform: translateX(-50%);
+}
+
+.cb-seat3d__chair-base {
+    position: absolute;
+    top: 21px;
+    left: 2px;
+    width: 62px;
+    height: 62px;
+    border: 1px solid var(--chair-edge);
+    border-radius: 8px 8px 14px 14px;
+    background: linear-gradient(180deg, var(--chair-bottom), var(--chair-top));
+    box-shadow: inset 0 3px 4px rgba(255, 255, 255, .12), 0 8px 14px rgba(0, 0, 0, .55);
+    transform: translateZ(-6px) rotateX(86deg);
+}
+
+.cb-seat3d__chair::before,
+.cb-seat3d__chair::after {
+    position: absolute;
+    top: 41px;
+    width: 62px;
+    height: 18px;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 8px 8px 3px 3px;
+    background: linear-gradient(180deg, #3c424e, #14171d);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, .5);
+    content: '';
+    transform: translateZ(-4px) rotateY(90deg);
+}
+
+.cb-seat3d__chair::before { left: -32px; }
+.cb-seat3d__chair::after { left: 36px; }
+
+/* Very large rooms drop the armrests: 4 planes per chair times 400 chairs is
+   the difference between a smooth orbit and a slideshow. */
+.cb-seat3d__seats.is-lite .cb-seat3d__chair::before,
+.cb-seat3d__seats.is-lite .cb-seat3d__chair::after {
+    display: none;
+}
+
+.cb-seat3d__halo {
+    width: 112px;
+    height: 74px;
+    margin-top: -37px;
+    margin-left: -56px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #ffa63a, #f05f00);
+    box-shadow: 0 0 34px rgba(255, 140, 30, .75), inset 0 2px 0 rgba(255, 255, 255, .34);
+    animation: cb-seat3d-halo 2.6s ease-in-out infinite;
+}
+
+.cb-seat3d__halo::after {
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-top: 18px solid #f05f00;
+    border-right: 14px solid transparent;
+    border-left: 14px solid transparent;
+    content: '';
+    transform: translateX(-50%);
+}
+
+/* Animate opacity only: the element's transform is its world placement, set
+   inline by JS, and a keyframed transform would overwrite it. */
+@keyframes cb-seat3d-halo {
+    0%, 100% { opacity: .62; }
+    50% { opacity: 1; }
+}
+
+.cb-seat3d__rowtag {
+    width: 48px;
+    height: 34px;
+    margin-top: -17px;
+    margin-left: -24px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 8px;
+    background: rgba(10, 14, 22, .62);
+    color: #9aa4b6;
+    font-size: 18px;
+    font-style: normal;
+    font-weight: 900;
+    line-height: 32px;
+    text-align: center;
+}
+
+/* --------------------------- screen-space HUD ------------------------ */
+
+.cb-seat3d__foreground {
+    position: absolute;
+    z-index: 10;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 50% 46%, transparent 40%, rgba(0, 0, 0, .55) 100%),
+        linear-gradient(180deg, rgba(0, 0, 0, .5) 0%, transparent 18%, transparent 72%, rgba(0, 0, 0, .72) 100%);
+    opacity: .85;
+    pointer-events: none;
+    transition: opacity 420ms ease;
+}
+
+.cb-seat3d__viewport[data-view="seat"] .cb-seat3d__foreground {
+    opacity: 1;
+}
+
+.cb-seat3d__grain {
+    position: absolute;
+    z-index: 11;
+    inset: 0;
+    background-image:
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, .014) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, .012) 0 1px, transparent 1px 3px);
+    mix-blend-mode: overlay;
+    opacity: .5;
+    pointer-events: none;
+}
+
+.cb-seat3d__map {
+    position: absolute;
+    z-index: 22;
+    top: 20px;
+    right: 20px;
+    width: 224px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 14px;
+    background: var(--cb3d-panel);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .58);
+    backdrop-filter: blur(14px);
+    cursor: default;
+}
+
+.cb-seat3d__map-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.cb-seat3d__map-head span {
+    color: #aab2c1;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .14em;
+}
+
+.cb-seat3d__map-head strong {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 122, 0, .18);
+    color: var(--cb3d-gold);
+    font-size: 11px;
+}
+
+.cb-seat3d__map-screen {
+    height: 9px;
+    margin: 0 auto 8px;
+    border-top: 2px solid rgba(230, 238, 255, .7);
+    border-radius: 50%;
+    color: #7f8999;
+    font-size: 6px;
+    font-weight: 900;
+    line-height: 10px;
+    text-align: center;
+    letter-spacing: .14em;
+}
+
+.cb-seat3d__map-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--map-columns), minmax(3px, 1fr));
+    gap: 2px;
+    min-height: 70px;
+    align-content: center;
+    padding: 7px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, .5);
+}
+
+.cb-seat3d__map-seat {
+    display: block;
+    aspect-ratio: 1.25;
+    min-width: 0;
+    border-radius: 1px;
+    background: #697180;
+}
+
+.cb-seat3d__map-seat--vip { background: #da4a46; }
+.cb-seat3d__map-seat--couple { background: #a74669; }
+.cb-seat3d__map-seat.is-occupied { background: #292e37; }
+.cb-seat3d__map-seat.is-empty { background: transparent; }
+.cb-seat3d__map-seat.is-selected {
+    position: relative;
+    z-index: 2;
+    outline: 2px solid #fff;
+    outline-offset: 1px;
+    background: var(--cb3d-accent);
+    box-shadow: 0 0 8px var(--cb3d-accent);
+}
+
+.cb-seat3d__map-key {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 8px 0;
+    color: #8790a0;
+    font-size: 7px;
+}
+
+.cb-seat3d__map-key span {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.cb-seat3d__map-key i {
+    width: 7px;
+    height: 7px;
+    border-radius: 1px;
+    background: #697180;
+}
+
+.cb-seat3d__map-key span:nth-child(2) i { background: #292e37; }
+.cb-seat3d__map-key span:nth-child(3) i { background: var(--cb3d-accent); }
+
+.cb-seat3d__map-action {
+    display: flex;
+    width: 100%;
+    min-height: 38px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 0;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #ff8a1f, #f04e00);
+    color: #fff;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: filter 180ms ease, transform 180ms ease;
+}
+
+.cb-seat3d__map-action:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+}
+
+.cb-seat3d__map-action svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+
+.cb-seat3d__view-label,
+.cb-seat3d__legend,
+.cb-seat3d__done {
+    position: absolute;
+    z-index: 22;
+    bottom: 18px;
+}
+
+.cb-seat3d__view-label {
+    left: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 12px;
+    background: var(--cb3d-panel);
+    backdrop-filter: blur(12px);
+}
+
+.cb-seat3d__view-label > i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--cb3d-accent);
+    box-shadow: 0 0 12px var(--cb3d-accent);
+}
+
+.cb-seat3d__view-label div {
+    display: grid;
+    gap: 1px;
+}
+
+.cb-seat3d__view-label span {
+    color: var(--cb3d-gold);
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .11em;
+}
+
+.cb-seat3d__view-label strong {
+    color: #e5e9f0;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.cb-seat3d__legend {
+    left: 50%;
+    display: flex;
+    gap: 13px;
+    padding: 9px 13px;
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 999px;
+    background: var(--cb3d-panel);
+    color: #b2bac8;
+    font-size: 9px;
+    transform: translateX(-50%);
+    backdrop-filter: blur(10px);
+    transition: opacity 300ms ease;
+}
+
+.cb-seat3d__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.cb-seat3d__legend-seat {
+    width: 9px;
+    height: 7px;
+    border-radius: 2px;
+    background: #697180;
+}
+
+.cb-seat3d__legend-seat--vip { background: #da4a46; }
+.cb-seat3d__legend-seat--couple { background: #a74669; }
+.cb-seat3d__legend-seat--selected { background: var(--cb3d-accent); box-shadow: 0 0 6px var(--cb3d-accent); }
+
+.cb-seat3d__done {
+    right: 20px;
+    min-height: 38px;
+    padding: 0 16px;
+    border: 1px solid rgba(255, 255, 255, .22);
+    border-radius: 11px;
+    background: rgba(242, 245, 250, .95);
+    color: #111827;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 850;
+    cursor: pointer;
+    transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.cb-seat3d__done:hover {
+    background: #fff;
+    transform: translateY(-1px);
+}
+
+/* ---------------------------- per-view state ------------------------- */
+
+.cb-seat3d__viewport[data-view="seat"] .cb-seat3d__halo,
+.cb-seat3d__viewport[data-view="seat"] .cb-seat3d__rowtags {
+    opacity: 0;
+}
+
+.cb-seat3d__viewport[data-view="seat"] .cb-seat3d__legend {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.cb-seat3d__halo,
+.cb-seat3d__rowtags {
+    transition: opacity 380ms ease;
+}
+
+/* ------------------------------ responsive --------------------------- */
+
+@media (max-width: 1280px) {
+    .cb-seat3d__header {
+        grid-template-columns: auto minmax(160px, 1fr) auto;
+        gap: 12px;
+    }
+
+    .cb-seat3d__instruction {
+        display: none;
+    }
+
+    .cb-seat3d__film-field {
+        width: 180px;
+    }
+
+    .cb-seat3d__map {
+        right: 14px;
+        width: 198px;
+    }
+
+    .cb-seat3d__view-label { left: 14px; }
+    .cb-seat3d__done { right: 14px; }
+}
+
+@media (max-width: 1060px) {
+    .cb-seat3d__shell {
+        min-height: min(600px, calc(100vh - 24px));
+    }
+
+    .cb-seat3d__brand {
+        display: none;
+    }
+
+    .cb-seat3d__header {
+        grid-template-columns: minmax(170px, 1fr) auto;
+    }
+
+    .cb-seat3d__identity p {
+        display: none;
+    }
+
+    .cb-seat3d__film-field {
+        width: 160px;
+    }
+
+    .cb-seat3d__map {
+        width: 184px;
+    }
+
+    .cb-seat3d__legend {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cb-seat3d,
+    .cb-seat3d__shell,
+    .cb-seat3d__world,
+    .cb-seat3d__screen-stage,
+    .cb-seat3d__floor,
+    .cb-seat3d__seats,
+    .cb-seat3d__chair,
+    .cb-seat3d__halo,
+    .cb-seat3d__rowtags,
+    .cb-seat3d__foreground,
+    .cb-seat3d__map-action,
+    .cb-seat3d__done {
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
+        animation: none !important;
+    }
+}

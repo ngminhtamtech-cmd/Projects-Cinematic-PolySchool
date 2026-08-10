@@ -1,0 +1,124 @@
+' =============================================================================
+'  1. Use Case Diagram tổng thể hệ thống CineBook (UML 2.5)
+'
+'  Nội dung LẤY NGUYÊN từ USECASE_00_TongQuat.puml (bản đã duyệt): đủ 5 actor,
+'  18 use case, 12 quan hệ <<include>> hội tụ về "Đăng nhập". Bản này CHỈ đổi
+'  tiêu đề cho khớp danh mục hình của báo cáo — không thêm/bớt/đổi hướng bất kỳ
+'  actor, use case hay quan hệ nào.
+'
+'  Đối chiếu code:
+'    - 5 vai trò: util/RoleUtil.java (guest 0 < member 1 < staff 2 < manager 3 < admin 4)
+'    - ánh xạ route -> vai: filter/AuthFilter.java:115 requiredRole()
+'    - "Đăng nhập": controller/auth/AuthServlet.java, route /login (web.xml)
+'
+'  QUY TẮC ÁP DỤNG (CINEBOOK_DIAGRAM_STYLE_AND_PLAN.md mục 4):
+'   - actor -> use case: nét liền thẳng, KHÔNG mũi tên.
+'   - use case ..> "Đăng nhập": nét đứt gập vuông (ortho), mũi tên CHỈ tại đích.
+'
+'  Render:
+'    java -jar tools/plantuml/plantuml.jar -tsvg -charset UTF-8 -o ../svg <file>
+'    java -jar tools/plantuml/plantuml.jar -tpng -charset UTF-8 -o ../png --skinparam dpi=450 <file>
+' =============================================================================
+@startuml 1. Use Case Diagram tổng thể hệ thống CineBook
+title 1. USE CASE DIAGRAM TỔNG THỂ HỆ THỐNG CINEBOOK (UML 2.5)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam ArrowThickness 1
+' Ở chiều trái->phải, ranksep là khoảng cách NGANG: nới ra vừa kéo giãn 12 nhãn
+' «include» đang chen nhau trước ellipse "Đăng nhập", vừa hạ tỉ lệ cao/rộng của
+' ảnh xuống mức chèn vừa trang. Chỉ đổi khoảng cách trình bày, không đổi nội dung.
+skinparam nodesep 45
+skinparam ranksep 120
+skinparam usecase {
+  BorderColor black
+  BackgroundColor white
+  ArrowColor black
+}
+skinparam actor {
+  BorderColor black
+  BackgroundColor white
+}
+left to right direction
+
+actor "Khách vãng lai\n(guest)" as Guest
+actor "Thành viên\n(member)" as Member
+actor "Nhân viên quầy vé\n(staff)" as Staff
+actor "Quản lý rạp\n(manager)" as Manager
+actor "Quản trị hệ thống\n(admin)" as Admin
+
+rectangle "HỆ THỐNG CINEBOOK — BÁN VÉ XEM PHIM TRỰC TUYẾN" {
+  usecase "Đăng nhập" as UC_Login
+
+  ' --- Guest: không include Đăng nhập (chưa xác thực) ---
+  usecase "Đăng ký tài khoản" as UC_Register
+  usecase "Duyệt nội dung công khai\n(phim / rạp / lịch chiếu)" as UC_BrowsePublic
+  usecase "Kiểm tra mã khuyến mãi" as UC_CheckPromo
+  usecase "Xem chính sách hoàn vé" as UC_ViewRefundPolicy
+  usecase "Quên & khôi phục mật khẩu" as UC_ForgotPassword
+  usecase "Gửi kháng cáo mở khóa\ntài khoản" as UC_AccountAppeal
+
+  ' --- Member ---
+  usecase "Đặt vé & thanh toán" as UC_BookPay
+  usecase "Đánh giá & bình luận phim" as UC_Comment
+  usecase "Quản lý hồ sơ cá nhân" as UC_Profile
+  usecase "Khách hàng thân thiết" as UC_Loyalty
+  usecase "Gửi yêu cầu hoàn tiền" as UC_RefundRequest
+
+  ' --- Staff ---
+  usecase "Vận hành quầy vé" as UC_CounterOps
+  usecase "Quản lý đơn & vé" as UC_StaffOrders
+
+  ' --- Manager & Admin: 3 use case dùng chung ---
+  usecase "Quản lý danh mục &\nvận hành rạp" as UC_CatalogOps
+  usecase "Quản lý người dùng &\nkiểm duyệt" as UC_UserModeration
+  usecase "Quản lý đơn hàng &\nbáo cáo" as UC_OrderReport
+
+  ' --- Admin: riêng ---
+  usecase "Quản trị nội dung &\nkhuyến mãi toàn hệ thống" as UC_GlobalPromo
+  usecase "Cấu hình & vận hành\nhệ thống" as UC_SystemConfig
+}
+
+' ===== Actor — Use Case (nét liền, không mũi tên) =====
+Guest -- UC_Register
+Guest -- UC_BrowsePublic
+Guest -- UC_CheckPromo
+Guest -- UC_ViewRefundPolicy
+Guest -- UC_ForgotPassword
+Guest -- UC_AccountAppeal
+
+Member -- UC_BookPay
+Member -- UC_Comment
+Member -- UC_Profile
+Member -- UC_Loyalty
+Member -- UC_RefundRequest
+
+Staff -- UC_CounterOps
+Staff -- UC_StaffOrders
+
+Manager -- UC_CatalogOps
+Manager -- UC_UserModeration
+Manager -- UC_OrderReport
+
+UC_GlobalPromo -- Admin
+UC_SystemConfig -- Admin
+UC_CatalogOps -- Admin
+UC_UserModeration -- Admin
+UC_OrderReport -- Admin
+
+' ===== <<include>> → Đăng nhập (nét đứt, gập vuông, mũi tên chỉ tại đích) =====
+UC_BookPay ..> UC_Login : <<include>>
+UC_Comment ..> UC_Login : <<include>>
+UC_Profile ..> UC_Login : <<include>>
+UC_Loyalty ..> UC_Login : <<include>>
+UC_RefundRequest ..> UC_Login : <<include>>
+UC_CounterOps ..> UC_Login : <<include>>
+UC_StaffOrders ..> UC_Login : <<include>>
+UC_CatalogOps ..> UC_Login : <<include>>
+UC_UserModeration ..> UC_Login : <<include>>
+UC_OrderReport ..> UC_Login : <<include>>
+UC_GlobalPromo ..> UC_Login : <<include>>
+UC_SystemConfig ..> UC_Login : <<include>>
+
+@enduml

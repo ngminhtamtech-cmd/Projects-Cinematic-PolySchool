@@ -1,0 +1,226 @@
+' =============================================================================
+'  CineBook — Sequence Diagram: Authentication (3 luồng)
+'  Mức trừu tượng thống nhất: Actor → View (JSP) → Servlet → Service → DAO →
+'  Database → External Service. Nguồn: báo cáo khảo sát Servlet + Service/DAO.
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 SEQ_01_Auth.puml
+' =============================================================================
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 1 — Đăng ký tài khoản + gửi email xác thực                            ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_01_DangKyVaXacThucEmail
+title Sequence — Đăng ký tài khoản & gửi email xác thực
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Khách vãng lai" as Guest
+participant "register.jsp" as View
+participant "AuthServlet" as Servlet
+participant "PasswordPolicy" as Policy
+participant "UserDAO\n(JdbcUserDAO)" as DAO
+participant "EmailService" as Email
+database "SQL Server" as DB
+
+Guest -> View : điền form đăng ký\n(email, password, confirmPassword)
+View -> Servlet : POST /register\n(_csrf)
+activate Servlet
+Servlet -> Servlet : validate CSRF (CsrfFilter đã chặn\ntrước khi tới đây nếu thiếu token)
+Servlet -> Policy : validate(password)
+activate Policy
+Policy --> Servlet : hợp lệ / [Không hợp lệ]
+deactivate Policy
+
+alt [Không hợp lệ]
+  Servlet --> View : flash lỗi\n"Mật khẩu không đạt yêu cầu"
+  View --> Guest : hiển thị lỗi trên form
+else [Hợp lệ]
+  Servlet -> DAO : findByEmail(email)
+  activate DAO
+  DAO -> DB : SELECT ... WHERE Email=?
+  DB --> DAO : kết quả
+  DAO --> Servlet : User / null
+  deactivate DAO
+
+  alt [Email đã tồn tại]
+    Servlet --> View : flash lỗi "Email đã được sử dụng"
+    View --> Guest : hiển thị lỗi
+  else [Email chưa tồn tại]
+    Servlet -> DAO : create(user)\n(PasswordUtil.hash — BCrypt cost 12)
+    activate DAO
+    DAO -> DB : BEGIN TRAN\nINSERT INTO Users(...)\nCOMMIT
+    DB --> DAO : userId mới
+    deactivate DAO
+    Servlet -> Email : createAndSendVerification(user)
+    activate Email
+    Email -> DB : INSERT verify token
+    Email -> Email : gửi async\n(mail.mode=logfile|smtp)
+    Email --> Servlet : (không chặn luồng chính)
+    deactivate Email
+    Servlet --> View : redirect /login\n+ flash "Đăng ký thành công,\nkiểm tra email để xác thực"
+    View --> Guest : hiển thị thông báo
+  end
+end
+deactivate Servlet
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 2 — Đăng nhập, throttle, account lock, session rotation               ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_02_DangNhapThrottleLock
+title Sequence — Đăng nhập, chống dò mật khẩu (throttle), khoá tài khoản, xoay CSRF token
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Người dùng" as U
+participant "login.jsp" as View
+participant "AuthServlet" as Servlet
+participant "LoginThrottleService" as Throttle
+participant "UserDAO" as UserDAO
+participant "AccountStateGuard" as Guard
+participant "CsrfFilter" as Csrf
+database "SQL Server\n(LoginAttempts, Users)" as DB
+
+U -> View : nhập email/password
+View -> Servlet : POST /login (_csrf)
+activate Servlet
+Servlet -> Throttle : check(email, ip)
+activate Throttle
+Throttle -> DB : summarizeByEmail/summarizeByIp\n(LoginAttempts)
+DB --> Throttle : số lần thất bại gần đây
+Throttle --> Servlet : Decision{allow / locked / delayMs}
+deactivate Throttle
+
+alt [Bị khoá tạm thời do quá nhiều lần thất bại]
+  Servlet --> View : 429 / thông báo\n"Thử lại sau X phút"
+  View --> U : hiển thị lỗi throttle
+else [Còn cho phép thử]
+  Servlet -> UserDAO : findByEmail(email)
+  UserDAO -> DB : SELECT ...
+  DB --> UserDAO : User / null
+  UserDAO --> Servlet : User
+
+  Servlet -> Servlet : PasswordUtil.matches(password, hash)
+
+  alt [Sai mật khẩu hoặc không tồn tại]
+    Servlet -> Throttle : recordFailure(email, ip)
+    Throttle -> DB : INSERT LoginAttempts(success=0)
+    Servlet -> Throttle : applyProgressiveDelay(failures)
+    Servlet --> View : flash lỗi "Sai email hoặc mật khẩu"
+    View --> U : hiển thị lỗi
+  else [Đúng mật khẩu]
+    Servlet -> Guard : evaluate(user)
+    activate Guard
+    Guard -> DB : findAuthState(userId)\n(cache 30s)
+    DB --> Guard : trạng thái hiện hành
+    Guard --> Servlet : Verdict{OK / LOCKED / DELETED}
+    deactivate Guard
+
+    alt [Verdict = LOCKED hoặc DELETED]
+      Servlet --> View : redirect /login\n+ flash "Tài khoản đã bị khoá"
+      View --> U : hiển thị lỗi, gợi ý /appeal
+    else [Verdict = OK]
+      Servlet -> Throttle : recordSuccess(email, ip)
+      Throttle -> DB : INSERT LoginAttempts(success=1)
+      Servlet -> Servlet : HttpSession mới\n(session fixation protection)
+      Servlet -> Csrf : rotate(session) + writeCookie(resp)
+      Csrf --> Servlet : token mới (XSRF-TOKEN)
+      Servlet --> View : redirect theo role\n(/home, /admin/dashboard, /staff/checkin...)
+      View --> U : vào trang chủ tương ứng vai trò
+    end
+  end
+end
+deactivate Servlet
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 3 — Quên & đặt lại mật khẩu                                           ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_03_QuenDatLaiMatKhau
+title Sequence — Quên & Đặt lại mật khẩu
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Người dùng" as U
+participant "forgot-password.jsp /\nreset-password.jsp" as View
+participant "AuthServlet" as Servlet
+participant "PasswordResetService" as Svc
+participant "PasswordResetTokenDAO" as TokenDAO
+participant "UserDAO" as UserDAO
+participant "EmailService" as Email
+database "SQL Server" as DB
+
+U -> View : nhập email (quên mật khẩu)
+View -> Servlet : POST /forgot-password
+activate Servlet
+Servlet -> Svc : requestReset(email, ip, resetUrlBase)
+activate Svc
+Svc -> UserDAO : findByEmail(email)
+UserDAO -> DB : SELECT ...
+DB --> UserDAO : User / null
+
+alt [Email không tồn tại]
+  Svc --> Servlet : (im lặng — không lộ thông tin tồn tại email)
+else [Email tồn tại]
+  Svc -> TokenDAO : invalidateAllForUser(userId)\n+ create(token SHA-256, hạn 30 phút)
+  TokenDAO -> DB : UPDATE cũ / INSERT token mới
+  Svc -> Email : sendPasswordReset(user, resetUrlBase+token)
+  Email -> Email : gửi async (logfile|smtp)
+end
+Svc --> Servlet : (luôn trả về thành công —\nchống dò email tồn tại)
+deactivate Svc
+Servlet --> View : flash "Nếu email tồn tại,\nliên kết đặt lại đã được gửi"
+View --> U : hiển thị thông báo chung
+deactivate Servlet
+
+U -> View : mở liên kết /reset-password?token=...
+View -> Servlet : GET /reset-password
+Servlet -> Svc : isTokenUsable(rawToken)
+Svc -> TokenDAO : findByHash(hash)
+TokenDAO -> DB : SELECT ... WHERE TokenHash=?
+DB --> TokenDAO : token / null
+
+alt [Token hết hạn / đã dùng / không tồn tại]
+  Servlet --> View : flash lỗi "Liên kết không hợp lệ hoặc đã hết hạn"
+  View --> U : hiển thị lỗi, gợi ý gửi lại yêu cầu
+else [Token còn hạn]
+  Servlet --> View : hiển thị form đặt mật khẩu mới
+  U -> View : nhập mật khẩu mới + xác nhận
+  View -> Servlet : POST /reset-password (token, newPwd, confirmPwd)
+  Servlet -> Svc : consume(rawToken, newPwd, confirmPwd)
+  activate Svc
+  Svc -> Svc : PasswordPolicy.validate(newPwd)
+  alt [Không khớp / không đạt chính sách]
+    Svc --> Servlet : ResetResult{FAILED, lý do}
+    Servlet --> View : flash lỗi
+  else [Hợp lệ]
+    Svc -> UserDAO : changePassword(userId, hash)
+    UserDAO -> DB : BEGIN TRAN\nUPDATE Users SET PasswordHash=?\nCOMMIT
+    Svc -> TokenDAO : consume(tokenId)\n(đánh dấu đã dùng — 1 lần)
+    TokenDAO -> DB : UPDATE token SET UsedAt=GETDATE()
+    Svc --> Servlet : ResetResult{SUCCESS}
+    Servlet --> View : redirect /login\n+ flash "Đặt lại mật khẩu thành công"
+  end
+  deactivate Svc
+  View --> U : hiển thị kết quả
+end
+@enduml

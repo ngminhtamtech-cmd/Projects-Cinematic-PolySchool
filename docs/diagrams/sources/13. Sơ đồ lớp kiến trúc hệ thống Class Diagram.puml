@@ -1,0 +1,283 @@
+' =============================================================================
+'  13. Sơ đồ lớp kiến trúc hệ thống (Class Diagram) — CineBook
+'
+'  Báo cáo cần MỘT sơ đồ lớp "kiến trúc hệ thống"; bộ kỹ thuật hiện có tách thành
+'  7 sơ đồ theo module (CLASS_00..06). Bản này gộp lại, giữ lớp ĐẠI DIỆN của từng
+'  tầng thay vì liệt kê hết 175 file Java — mục tiêu là thấy được kiến trúc
+'  5 tầng và hướng phụ thuộc giữa chúng.
+'
+'  ĐÃ KIỂM CHỨNG SỰ TỒN TẠI của toàn bộ 32 lớp/interface bằng cách đối chiếu
+'  đường dẫn file thật dưới src/main/java/com/mycompany/website/ban/ve/xem/phim/.
+'  Chữ ký phương thức lấy nguyên văn từ khai báo interface/class, không rút gọn sai.
+'
+'  KIẾN TRÚC: Servlet -> Service -> JDBC DAO -> SQL Server.
+'  Không Spring, không JPA, không DI framework — service được new trực tiếp.
+'  HikariCP làm pool (10-20 connection, lazy-init trong config/DBConnection).
+'
+'  KHÔNG vẽ (không có bằng chứng trong codebase):
+'    - JWT / AccessTokenService  : đã bị xoá khỏi dự án (BUG-15, 01/08/2026)
+'    - Cổng thanh toán thật      : chỉ tồn tại SimulatedGateway
+'
+'  Style: trắng đen, linetype ortho (chỉ nét thẳng + gập vuông 90°), không nét cong.
+'
+'  Render:
+'    java -jar tools/plantuml/plantuml.jar -tsvg -charset UTF-8 -o ../svg <file>
+'    java -jar tools/plantuml/plantuml.jar -tpng -charset UTF-8 -o ../png --skinparam dpi=450 <file>
+' =============================================================================
+@startuml 13. Sơ đồ lớp kiến trúc hệ thống Class Diagram
+title 13. SƠ ĐỒ LỚP KIẾN TRÚC HỆ THỐNG (CLASS DIAGRAM) — CineBook\n<size:12>Servlet → Service → JDBC DAO → SQL Server · không Spring, không JPA</size>
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam nodesep 30
+skinparam ranksep 60
+skinparam class {
+  BorderColor black
+  BackgroundColor white
+}
+
+package "filter — chuỗi 7 filter, map /*" {
+  class SecurityHeaderFilter <<filter>> {
+    + doFilter(req, res, chain)
+  }
+  class AuthFilter <<filter>> {
+    - requiredRole(path, method) : String
+    + doFilter(req, res, chain)
+  }
+  class CsrfFilter <<filter>> {
+    + {static} rotate(request) : String
+    + {static} currentToken(request) : String
+    + doFilter(req, res, chain)
+  }
+}
+
+package "controller / api — tầng điều khiển" {
+  class AuthServlet <<controller>> {
+    - login(req, res)
+    - register(req, res)
+    - resetPassword(req, res)
+  }
+  class OrderServlet <<controller>> {
+    - createOrder(req, res, user)
+    - payOrder(req, res, user, orderId)
+    - cancelOrder(req, res, user, orderId)
+  }
+  class ManagerPortalServlet <<controller>> {
+    - handleFilmPost(req, res, actor)
+    - handleRoomPost(req, res, actor)
+    - handleShowtimePost(req, res, actor)
+    - handleOrderPost(req, res, actor)
+  }
+  class StaffPortalServlet <<controller>> {
+    + doGet(req, res)
+    + doPost(req, res)
+  }
+  abstract class BaseApiServlet <<controller>> {
+    # writeData(res, dto)
+    # requireStaff(request) : User
+    # segments(request) : String[]
+  }
+}
+
+package "service — nghiệp vụ thuần Java" {
+  class BookingService <<service>> {
+    + createDraftOrder(..) : OrderRecord
+    + payOrder(..) : OrderRecord
+    + cancelUserDraftOrder(userId, orderId)
+    + resolvePromotion(..) : Promotion
+    + getSeatMap(showtimeId) : List
+    + {static} holdMinutes() : int
+  }
+  class AdminService <<service>> {
+    + saveFilm(command, actor)
+    + deleteFilm(..) : FilmDeletionOutcome
+    + saveRoom(..)
+    + saveShowtimes(list, actor) : int
+    + redeemTicket(ticketCode, actor)
+    + markCounterOrderPaid(orderId, actor)
+    + refundOrder(..)
+    + getReportSummary(actor) : ReportSummaryDto
+  }
+  class StaffService <<service>> {
+    + lookupTicket(code, actor) : TicketLookup
+    + checkIn(code, actor) : TicketLookup
+    + collectPayment(orderId, actor)
+  }
+  class LoyaltyService <<service>> {
+    + addPointsOnPayment(..)
+    + reversePointsOnRefund(..)
+    + redeemVoucherWithPoints(..)
+  }
+  class HoldSweeper <<service>> {
+    + sweepOnce() : SweepResult
+    - releaseExpiredHolds(conn) : int
+    - cancelExpiredCounterOrders(conn) : int[]
+    - cancelOrphanDraftOrders(..) : int[]
+  }
+  class BookingStateMachine <<service>> {
+    + {static} classify(..) : CompositeBookingState
+    + {static} requireTransition(..)
+  }
+  interface PaymentGateway <<interface>> {
+    + createPayment(order) : PaymentResult
+    + verifyCallback(params) : PaymentResult
+    + getProviderName() : String
+  }
+  class SimulatedGateway <<service>>
+}
+
+package "dao — JDBC thuần, KHÔNG JPA/Hibernate" {
+  interface OrderDAO <<repository>> {
+    + insertDraftOrder(conn, order) : int
+    + findPendingOrderForUpdate(..) : Optional
+    + markPaid(..)
+    + confirmCounterOrder(..)
+    + findHistoryByUserId(userId) : List
+  }
+  interface ShowtimeSeatDAO <<repository>> {
+    + findSeatMap(conn, showtimeId) : List
+    + lockSeats(..) : List
+    + markHeld(..)
+    + markBooked(conn, seatIds, orderId)
+    + countActiveHoldsByUser(..) : int
+  }
+  interface FilmDAO <<repository>> {
+    + findById(id) : Optional
+    + searchPublic(..) : List
+    + findByCinemaId(cinemaId) : List
+  }
+  interface UserDAO <<repository>> {
+    + findByEmail(email) : Optional
+    + findById(id) : Optional
+    + updateLockStatus(..) : boolean
+  }
+  interface ShowtimeDAO <<repository>> {
+    + findById(conn, id) : Optional
+    + findByFilmAndCinema(..) : List
+  }
+  class JdbcOrderDAO <<repository>>
+  class JdbcShowtimeSeatDAO <<repository>>
+  class JdbcFilmDAO <<repository>>
+  class JdbcUserDAO <<repository>>
+  class JdbcShowtimeDAO <<repository>>
+}
+
+package "model — POJO nghiệp vụ" {
+  class OrderRecord <<entity>> {
+    - id : int
+    - orderStatus : String
+    - paymentStatus : String
+    - paymentMethod : String
+    - totalAmount : BigDecimal
+    - ticketCode : String
+  }
+  class ShowtimeSeat <<entity>> {
+    - status : String
+    - heldByUserId : Integer
+    - heldUntil : LocalDateTime
+    - claimedByOrderId : Integer
+  }
+  class Showtime <<entity>> {
+    - startTime : LocalDateTime
+    - basePrice : BigDecimal
+    - saleStatus : String
+  }
+  class User <<entity>> {
+    - role : String
+    - cinemaId : Integer
+    - isLocked : boolean
+  }
+  class Film <<entity>> {
+    - title : String
+    - status : String
+    - deletedAt : LocalDateTime
+  }
+}
+
+package "config / util — hạ tầng dùng chung" {
+  class DBConnection <<config>> {
+    + {static} getConnection() : Connection
+  }
+  class RoleUtil <<util>> {
+    + {static} isAtLeast(actual, required) : boolean
+    + {static} rank(role) : int
+  }
+  class ScopeUtil <<util>> {
+    + {static} assertCinemaScope(actor, cinemaId)
+    + {static} isOutOfCinemaScope(actor, cinemaId) : boolean
+  }
+}
+
+' ===== Realization: interface DAO <|.. lớp Jdbc* (nét đứt + tam giác rỗng) =====
+OrderDAO <|.. JdbcOrderDAO
+ShowtimeSeatDAO <|.. JdbcShowtimeSeatDAO
+FilmDAO <|.. JdbcFilmDAO
+UserDAO <|.. JdbcUserDAO
+ShowtimeDAO <|.. JdbcShowtimeDAO
+PaymentGateway <|.. SimulatedGateway
+
+' ===== Filter chain (thứ tự khai báo trong web.xml) =====
+SecurityHeaderFilter --> AuthFilter
+AuthFilter --> CsrfFilter
+AuthFilter ..> RoleUtil : isAtLeast()
+
+' ===== Controller -> Service (association, nét liền) =====
+AuthServlet --> UserDAO
+OrderServlet --> BookingService
+ManagerPortalServlet --> AdminService
+StaffPortalServlet --> StaffService
+BaseApiServlet --> BookingService
+BaseApiServlet --> StaffService
+
+' ===== Service -> Service =====
+BookingService --> LoyaltyService
+BookingService --> PaymentGateway
+BookingService --> BookingStateMachine
+StaffService --> AdminService
+HoldSweeper --> OrderDAO
+
+' ===== Service -> DAO =====
+BookingService --> OrderDAO
+BookingService --> ShowtimeSeatDAO
+BookingService --> ShowtimeDAO
+BookingService --> UserDAO
+AdminService --> FilmDAO
+AdminService --> OrderDAO
+
+' ===== Kiểm phạm vi cụm rạp (dependency, nét đứt) =====
+AdminService ..> ScopeUtil : assertCinemaScope()
+StaffService ..> ScopeUtil : isOutOfCinemaScope()
+
+' ===== DAO -> hạ tầng kết nối =====
+JdbcOrderDAO ..> DBConnection
+JdbcShowtimeSeatDAO ..> DBConnection
+JdbcFilmDAO ..> DBConnection
+JdbcUserDAO ..> DBConnection
+JdbcShowtimeDAO ..> DBConnection
+AdminService ..> DBConnection : SQL trực tiếp\n(không qua DAO)
+
+' ===== DAO -> Model =====
+' Chỉ nối từ DAO (không nối từ Service): DAO là nơi ánh xạ ResultSet thành POJO,
+' và hai package này nằm cạnh nhau nên cạnh ngắn. Nối thêm từ Service sang Model
+' chỉ tạo ra 5 cạnh chạy hết chiều ngang sơ đồ mà không thêm thông tin nào.
+OrderDAO ..> OrderRecord
+ShowtimeSeatDAO ..> ShowtimeSeat
+ShowtimeDAO ..> Showtime
+UserDAO ..> User
+FilmDAO ..> Film
+
+legend bottom
+  |= Ký hiệu |= Ý nghĩa |
+  | Nét liền, mũi tên hở | Association — lớp nguồn giữ tham chiếu tới lớp đích |
+  | Nét đứt, mũi tên hở | Dependency — lớp nguồn chỉ gọi tới, không giữ tham chiếu |
+  | Nét đứt, tam giác rỗng | Realization — lớp Jdbc* hiện thực interface DAO tương ứng |
+  |= Ghi chú |= |
+  | Sơ đồ hiển thị lớp ĐẠI DIỆN mỗi tầng; toàn bộ codebase có 175 file Java, 16 interface DAO + 16 lớp Jdbc*. | |
+  | AdminService (5.064 dòng) có nhiều hàm tự viết SQL trực tiếp qua DBConnection thay vì đi qua DAO — nợ kỹ thuật đã biết. | |
+  | Nhiều hàm AdminService có cặp overload f(x) và f(x, User actor); chỉ bản có actor mới áp kiểm tra phạm vi cụm rạp. | |
+  | Không có JWT: AccessTokenService đã bị xoá; xác thực chỉ còn session JSESSIONID + refresh token opaque. | |
+endlegend
+
+@enduml

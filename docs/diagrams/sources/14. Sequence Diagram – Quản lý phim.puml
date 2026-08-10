@@ -1,0 +1,189 @@
+' =============================================================================
+'  14. Sequence Diagram: Quản lý phim
+'
+'  Nguồn đối chiếu (đọc trực tiếp mã nguồn, không suy đoán):
+'    web.xml                                     -> /admin/films (ManagerPortalServlet)
+'    filter/AuthFilter.java:147                  -> tiền tố /admin yêu cầu vai >= manager
+'    api/CsrfFilter.java                         -> map /*, nhận _csrf (form) hoặc X-CSRF-Token
+'    controller/admin/ManagerPortalServlet:531   -> phân nhánh tab=custom / handleFilmPost
+'    controller/admin/ManagerPortalServlet:595   -> handleFilmPost: delete | extend | lưu
+'    service/AdminService.java:231               -> saveFilm(FilmFormCommand, actor)
+'    service/AdminService.java:267               -> saveFilm(Film, actor, cinemaIds)
+'    service/AdminService.java:7521              -> assertFilmScope (chỉ chặn manager)
+'    service/AdminService.java:780               -> deleteFilm(filmId, mode, confirmationTitle, actor)
+'    service/AdminService.java:7505              -> assertGlobalAdmin (CHỈ admin)
+'    service/AdminService.java:1082              -> extendFilmEndDate(filmId, newEndDate, actor)
+'    service/FilmDeletionOutcome.java            -> HARD_DELETED | TOMBSTONED
+'    database/fix35_film_showtime_lifecycle.sql  -> Films.DeletedAt/DeletedByUserId/DeletionMode
+'
+'  ĐIỂM DỄ VẼ SAI ĐÃ KIỂM CHỨNG:
+'    1. LƯU phim: manager làm được (AuthFilter cho qua /admin, assertFilmScope giới hạn
+'       phim thuộc cụm rạp của mình).
+'       XOÁ phim: assertGlobalAdmin -> CHỈ admin, manager nhận 403. Hai quyền KHÁC nhau.
+'    2. Kết quả xoá là HARD_DELETED hoặc TOMBSTONED (không phải "SOFT_DELETED").
+'    3. PURGE_COMMENTS bắt buộc gõ đúng tên phim mới cho xoá.
+'    4. Lưu phim và gán CinemaFilms nằm trong CÙNG một transaction (ST-01) — trước đây
+'       admin tạo phim mà không sinh dòng CinemaFilms nào, làm phim mới không hiện ở
+'       màn thêm suất chiếu.
+'
+'  Render:
+'    java -jar tools/plantuml/plantuml.jar -tsvg -charset UTF-8 -o ../svg <file>
+'    java -jar tools/plantuml/plantuml.jar -tpng -charset UTF-8 -o ../png --skinparam dpi=450 <file>
+' =============================================================================
+@startuml 14. Sequence Diagram – Quản lý phim
+title 14. SEQUENCE DIAGRAM – QUẢN LÝ PHIM\n<size:12>Quản lý rạp / Quản trị hệ thống → ManagerPortalServlet → AdminService → SQL Server</size>
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 260
+' KHÔNG dùng skinparam ParticipantPadding: PlantUML 1.2026.6 in một banner cảnh báo
+' "Please use CSS style instead of skinparam ParticipantPadding" ngay trên đầu ảnh.
+
+actor "Quản lý rạp /\nQuản trị hệ thống" as Actor
+participant "film-form.jsp\nfilms.jsp" as JSP <<view>>
+participant "CsrfFilter" as Csrf <<filter>>
+participant "AuthFilter" as Auth <<filter>>
+participant "ManagerPortalServlet" as Ctrl <<controller>>
+participant "AdminService" as Svc <<service>>
+participant "ScopeUtil" as Scope <<util>>
+database "SQL Server\nCineBookDB" as DB
+
+== 1. Gửi biểu mẫu và qua chuỗi filter ==
+
+Actor -> JSP : nhập thông tin phim,\nchọn cụm rạp áp dụng
+activate JSP
+JSP -> Csrf : POST /admin/films\n(form + _csrf)
+deactivate JSP
+activate Csrf
+
+alt token CSRF sai hoặc thiếu
+  Csrf --> JSP : 403 FORBIDDEN
+else token hợp lệ
+  Csrf -> Auth : chuyển tiếp
+  activate Auth
+  Auth -> Auth : requiredRole("/admin") = "manager"\nRoleUtil.isAtLeast(actor.role, "manager")
+  alt vai thấp hơn manager
+    Auth --> JSP : 403 FORBIDDEN
+  else đủ quyền
+    Auth -> Ctrl : doPost(request, response)
+    deactivate Auth
+    activate Ctrl
+  end
+end
+
+== 2. Phân nhánh theo tham số action ==
+
+Ctrl -> Ctrl : action = request.getParameter("action")
+
+alt action rỗng — TẠO MỚI hoặc CẬP NHẬT phim
+
+  Ctrl -> Ctrl : dựng Film từ tham số form\n+ danh sách cinemaIds\n→ FilmFormCommand
+  Ctrl -> Svc : saveFilm(command, actor)
+  activate Svc
+
+  opt film.getId() > 0 (đang sửa phim đã có)
+    Svc -> Scope : assertFilmScope(actor, filmId)
+    activate Scope
+    Scope -> DB : SELECT 1 FROM CinemaFilms\nWHERE CinemaId=? AND FilmId=?
+    activate DB
+    DB --> Scope : có / không
+    deactivate DB
+    alt manager, phim ngoài cụm rạp được phân quyền
+      Scope --> Svc : ném BookingException(403)
+      Svc --> JSP : "Phim không thuộc cụm rạp được phân quyền."
+    end
+    deactivate Scope
+  end
+
+  Svc -> DB : BEGIN TRANSACTION
+  activate DB
+  alt tạo mới
+    Svc -> DB : INSERT INTO Films (...) \nOUTPUT INSERTED.Id
+  else cập nhật
+    Svc -> DB : UPDATE Films SET ... , UpdatedAt=GETDATE()\nWHERE Id=?
+  end
+  note right of DB
+    ST-01: lưu phim và gán cụm rạp nằm trong
+    CÙNG một transaction — hoặc có cả hai, hoặc
+    không có gì. Không còn trạng thái "phim tồn
+    tại nhưng không thuộc rạp nào".
+  end note
+  Svc -> DB : DELETE FROM CinemaFilms WHERE FilmId=?\nINSERT INTO CinemaFilms (CinemaId, FilmId) ...
+  Svc -> DB : INSERT INTO AuditLogs\n(ActorUserId, Action, TargetType, TargetId, ...)
+  Svc -> DB : COMMIT
+  DB --> Svc : thành công
+  deactivate DB
+  Svc --> Ctrl : trả về
+  deactivate Svc
+  Ctrl --> JSP : redirect /admin/films\n+ thông báo "Đã lưu phim"
+
+else action = "delete" — XOÁ PHIM (chỉ Admin)
+
+  Ctrl -> Svc : deleteFilm(filmId, mode,\nconfirmationTitle, actor)
+  activate Svc
+  Svc -> Svc : assertGlobalAdmin(actor)
+  alt actor KHÔNG phải admin
+    Svc --> JSP : 403 "Chức năng toàn hệ thống\nchỉ dành cho Admin."
+  else actor là admin
+    Svc -> DB : BEGIN TRANSACTION
+    activate DB
+    Svc -> DB : loadFilmDeleteImpact(filmId)\n→ đếm suất chiếu, bình luận, đơn liên quan
+    DB --> Svc : {title, showtimeCount, commentCount, eligible}
+
+    alt mode = PURGE_COMMENTS và tên xác nhận sai
+      Svc -> DB : ROLLBACK
+      Svc --> JSP : 400 "Hãy nhập đúng tên phim\nđể xác nhận xoá bình luận vĩnh viễn."
+    else showtimeCount = 0 và commentCount = 0 → XOÁ CỨNG
+      Svc -> DB : DELETE FROM Films WHERE Id=?
+      Svc -> DB : INSERT AuditLogs (Action='HARD_DELETE_FILM')
+      Svc -> DB : COMMIT
+      deactivate DB
+      Svc --> Ctrl : FilmDeletionOutcome.HARD_DELETED
+      Ctrl --> JSP : "Đã xoá phim vì chưa có\ndữ liệu tham chiếu."
+    else còn dữ liệu lịch sử → XOÁ MỀM (bia mộ)
+      activate DB
+      opt mode = PURGE_COMMENTS
+        Svc -> DB : DELETE FROM CommentReports ...\nDELETE FROM Comments WHERE FilmId=?
+      end
+      Svc -> DB : UPDATE Films\nSET DeletedAt=SYSDATETIME(), DeletedByUserId=?,\n    DeletionMode=?, Status='ended'\nWHERE Id=? AND DeletedAt IS NULL
+      Svc -> DB : INSERT AuditLogs (Action='TOMBSTONE_FILM')
+      Svc -> DB : COMMIT
+      deactivate DB
+      Svc --> Ctrl : FilmDeletionOutcome.TOMBSTONED
+      Ctrl --> JSP : "Phim có dữ liệu lịch sử nên\nđã chuyển vào mục Đã xoá."
+    end
+  end
+  deactivate Svc
+
+else action = "extend" — GIA HẠN LỊCH CHIẾU
+
+  Ctrl -> Svc : extendFilmEndDate(filmId, newEndDate, actor)
+  activate Svc
+  Svc -> Scope : assertFilmScope(actor, filmId)
+  Svc -> DB : UPDATE Films SET EndDate=?\nWHERE Id=?
+  activate DB
+  note right of DB
+    CK_Films_EndDate_After_ReleaseDate chặn
+    EndDate < ReleaseDate ngay ở tầng CSDL.
+  end note
+  DB --> Svc : thành công
+  deactivate DB
+  Svc -> DB : INSERT AuditLogs
+  deactivate Svc
+  Ctrl --> JSP : "Đã gia hạn lịch chiếu\nđến ngày <EndDate>."
+end
+
+deactivate Ctrl
+JSP --> Actor : hiển thị danh sách phim\n+ thông báo kết quả
+
+legend bottom
+  |= Ghi chú |
+  | LƯU và XOÁ phim có mức quyền KHÁC nhau: lưu cần vai >= manager (kèm assertFilmScope giới hạn |
+  | phim thuộc cụm rạp của manager); xoá gọi assertGlobalAdmin nên CHỈ admin làm được, manager nhận 403. |
+  | Mọi thao tác ghi đều nằm trong một transaction có ROLLBACK khi lỗi, và đều để lại một dòng AuditLogs. |
+  | Xoá cứng chỉ xảy ra khi phim chưa có suất chiếu và chưa có bình luận nào; còn lại luôn là xoá mềm. |
+endlegend
+
+@enduml

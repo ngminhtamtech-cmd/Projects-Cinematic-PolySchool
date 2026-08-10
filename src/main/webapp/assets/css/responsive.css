@@ -1,0 +1,255 @@
+@media (min-width: 1440px) {
+    :root {
+        --container: 1200px;
+    }
+}
+
+@media (max-width: 1180px) {
+    .quick-booking form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .quick-booking button {
+        grid-column: 1 / -1;
+    }
+
+    .footer-grid,
+    .offer-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .footer-mini-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px 16px;
+    }
+
+    .footer-mini-nav {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 991px) {
+    :root {
+        --header-height: 70px;
+    }
+
+    .body-lock,
+    body.nav-open {
+        overflow: hidden;
+    }
+
+    .nav-toggle {
+        display: block;
+    }
+
+    .brand-logo-icon {
+        width: 30px;
+        height: 30px;
+    }
+
+    .brand-title {
+        font-size: 21px;
+    }
+
+    .cta-buy-ticket,
+    a.cta-buy-ticket {
+        min-height: 44px !important;
+        height: 44px !important;
+        padding-inline: 16px !important;
+        font-size: 13px !important;
+    }
+
+    .primary-nav {
+        position: fixed;
+        top: 0;
+        right: 0;
+        z-index: 1001;
+        width: min(360px, 86vw);
+        height: 100vh;
+        padding: 88px 24px 24px;
+        display: grid;
+        align-content: start;
+        align-items: stretch;
+        gap: 18px;
+        background: #16161a;
+        transform: translateX(100%);
+        transition: transform .28s ease;
+        box-shadow: -24px 0 60px rgba(0, 0, 0, .28);
+    }
+
+    body.nav-open .primary-nav {
+        transform: translateX(0);
+    }
+
+    .header-right {
+        margin-left: auto;
+    }
+
+    .search-form-header {
+        display: none;
+    }
+
+    .hero-inner,
+    .page-head,
+    .detail-shell,
+    .booking-layout,
+    .auth-layout,
+    .portal-grid,
+    .profile-grid,
+    .dashboard {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-inner {
+        padding-top: 56px;
+    }
+
+    .auth-showcase {
+        min-height: 360px;
+    }
+
+    .booking-summary {
+        position: static;
+    }
+}
+
+@media (max-width: 767px) {
+    .container,
+    .header-shell,
+    .hero-inner,
+    .quick-booking {
+        width: min(100% - 24px, var(--container));
+    }
+
+    .hero-cinema {
+        min-height: auto;
+    }
+
+    .hero-inner {
+        padding-bottom: 110px;
+    }
+
+    .hero-feature-card {
+        min-height: 260px;
+    }
+
+    .quick-booking {
+        margin-top: -58px;
+        border-radius: var(--radius-lg);
+    }
+
+    .quick-booking form,
+    .search-bar,
+    .form-columns,
+    .footer-grid,
+    .offer-grid,
+    .ticket-card {
+        grid-template-columns: 1fr;
+    }
+
+    .page-hero,
+    .detail-shell {
+        padding: 24px;
+    }
+
+    .section-row,
+    .showtime-row,
+    .portal-head,
+    .footer-bottom {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .site-footer-mini {
+        padding: 16px 0 12px;
+    }
+
+    .footer-mini-row {
+        gap: 12px 14px;
+    }
+
+    .footer-mini-nav {
+        gap: 7px 14px;
+        line-height: 1.45;
+    }
+
+    .footer-mini-nav .dot {
+        display: none;
+    }
+
+    .footer-mini-socials .social-btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    .footer-bottom {
+        gap: 4px;
+        font-size: 11px;
+    }
+
+    .movie-grid {
+        grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+        gap: 16px;
+    }
+
+    .seat-grid {
+        grid-template-columns: repeat(8, minmax(36px, 1fr));
+        min-width: 420px;
+    }
+
+    .mobile-booking-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 800;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 16px;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, .96);
+        box-shadow: 0 -12px 34px rgba(15, 23, 42, .14);
+        backdrop-filter: blur(16px);
+    }
+
+    body.has-mobile-booking-bar {
+        padding-bottom: 82px;
+    }
+}
+
+@media (max-width: 575px) {
+    .header-shell {
+        gap: 12px;
+    }
+
+    .brand {
+        font-size: 20px;
+    }
+
+    .brand small {
+        display: none;
+    }
+
+    .auth-status-container .register-badge-link {
+        display: none;
+    }
+
+    .hero-copy h1 {
+        font-size: 38px;
+    }
+
+    .hero-copy p,
+    .lead-copy {
+        font-size: 15px;
+    }
+
+    .auth-card,
+    .auth-showcase {
+        padding: 24px;
+    }
+}

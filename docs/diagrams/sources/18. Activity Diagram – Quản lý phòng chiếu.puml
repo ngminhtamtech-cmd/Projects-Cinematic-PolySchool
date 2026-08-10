@@ -1,0 +1,178 @@
+' =============================================================================
+'  18. Activity Diagram: Quản lý phòng chiếu
+'
+'  Nguồn đối chiếu (đọc trực tiếp mã nguồn, không suy đoán):
+'    controller/admin/ManagerPortalServlet.java:819  handleRoomPost
+'    service/AdminService.java:1624  saveRoom(room, rowCount, seatsPerRow,
+'                                             vipRowsCsv, regenerateLayout, actor)
+'    service/AdminService.java:1572  previewRoomSeats  -> SeatLayoutPreview
+'    service/AdminService.java:1537  saveCustomRoomSeats
+'    service/AdminService.java:1771  deleteRoom
+'    service/AdminService.java:2179 / 2193  activateRoom / deactivateRoom
+'    util/ScopeUtil.java             assertCinemaScope (chỉ chặn manager)
+'    database/fix32_seat_layout_versions.sql  Seats.LayoutVersion / IsActive / RetiredAt
+'    database/fix40_room_deleted_status.sql   CK_Rooms_Status thêm giá trị 'deleted'
+'
+'  BỐ CỤC — 3 swimlane, nhánh lỗi kết thúc tại chính lane phát hiện ra nó
+'  (xem lý do đã ghi trong 17. Activity Diagram – Quản lý phim.puml).
+'
+'  Render:
+'    java -jar tools/plantuml/plantuml.jar -tsvg -charset UTF-8 -o ../svg <file>
+'    java -jar tools/plantuml/plantuml.jar -tpng -charset UTF-8 -o ../png --skinparam dpi=450 <file>
+' =============================================================================
+@startuml 18. Activity Diagram – Quản lý phòng chiếu
+title 18. ACTIVITY DIAGRAM – QUẢN LÝ PHÒNG CHIẾU
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+  DiamondBackgroundColor white
+}
+
+|Quản lý rạp|
+start
+:đăng nhập, mở /admin/rooms;
+:chọn thao tác trên phòng chiếu;
+:gửi form kèm token CSRF;
+
+|Hệ thống (Servlet + Service)|
+if (Token CSRF hợp lệ\nVÀ vai >= manager?) then ([Không])
+  :403 Forbidden;
+  stop
+else ([Có])
+endif
+
+:đọc tham số action;
+
+switch (Thao tác nào?)
+
+case ([Tạo mới / Sửa phòng])
+  :AdminService.saveRoom(room, rowCount,\nseatsPerRow, vipRowsCsv,\nregenerateLayout, actor);
+  :ScopeUtil.assertCinemaScope(actor,\nroom.cinemaId);
+  if (Manager và cinemaId đích\nkhác Users.CinemaId?) then ([Khác cụm rạp])
+    :403 "Bạn không có quyền truy cập\ndữ liệu của cụm rạp này.";
+    stop
+  else ([Đúng cụm rạp])
+  endif
+
+  if (Đang SỬA phòng đã có?) then ([Có])
+    :assertRoomScope(actor, room.id);
+    note right
+      Kiểm phạm vi HAI lần là có chủ ý: vế đầu chặn
+      cụm rạp ĐÍCH, vế sau chặn cụm rạp NGUỒN. Thiếu
+      vế sau, manager sửa được phòng của rạp khác
+      bằng cách gán cinemaId về cụm rạp của mình.
+    end note
+    if (Phòng thuộc cụm rạp\ncủa manager?) then ([Không])
+      :403 — chặn IDOR;
+      stop
+    else ([Có])
+    endif
+  else ([Tạo mới])
+  endif
+
+  if (Tên phòng để trống?) then ([Trống])
+    :400 "Tên phòng chiếu\nkhông được để trống.";
+    stop
+  else ([Hợp lệ])
+  endif
+
+  |Cơ sở dữ liệu|
+  :BEGIN TRANSACTION;
+  if (Tạo mới?) then ([Có])
+    :INSERT INTO Rooms\n(CinemaId, Name, RoomType, Status='active');
+  else ([Cập nhật])
+    :UPDATE Rooms SET Name=?, RoomType=?,\nUpdatedAt=GETDATE();
+  endif
+  if (Có yêu cầu sinh lại sơ đồ ghế?) then ([Có])
+    :sinh rowCount × seatsPerRow ghế,\nhàng trong vipRowsCsv đánh SeatType='vip';
+    :INSERT INTO Seats\n(RoomId, RowLabel, SeatNumber,\n SeatType, SeatKey, LayoutVersion);
+    note right
+      UQ_Seats_Room_SeatKey chặn trùng mã ghế trong
+      cùng phòng; CK_Seats_Type giới hạn SeatType
+      thuộc (standard, vip, couple).
+    end note
+  else ([Giữ nguyên sơ đồ cũ])
+  endif
+  :INSERT INTO AuditLogs;
+  :COMMIT;
+  :trả về "Đã lưu phòng chiếu";
+  stop
+
+case ([Xem trước sơ đồ ghế tuỳ chỉnh])
+  |Hệ thống (Servlet + Service)|
+  :parseSeatJson(roomId, seatsJson);
+  :AdminService.previewRoomSeats(roomId,\nrequestedSeats, actor);
+  :assertRoomScope(actor, roomId);
+
+  |Cơ sở dữ liệu|
+  :SELECT sơ đồ ghế hiện tại\n+ ghế đang được suất chiếu tham chiếu;
+
+  |Hệ thống (Servlet + Service)|
+  :tính chênh lệch:\naddedSeatKeys, removedSeatKeys,\nreferencedSeatKeys, nextLayoutVersion;
+  note right
+    Nhánh ĐỌC duy nhất: không mở transaction,
+    không ghi bảng nào. Chỉ trả JSON để giao diện
+    cảnh báo trước khi người dùng bấm lưu thật.
+  end note
+  :trả về SeatLayoutPreview (JSON);
+  stop
+
+case ([Lưu sơ đồ ghế tuỳ chỉnh])
+  |Hệ thống (Servlet + Service)|
+  :AdminService.saveCustomRoomSeats(roomId,\nseats, actor);
+  :assertRoomScope(actor, roomId);
+
+  |Cơ sở dữ liệu|
+  :BEGIN TRANSACTION;
+  :cập nhật Seats theo sơ đồ mới,\nLayoutVersion tăng 1;
+  :ghế bị bỏ đánh IsActive=0, RetiredAt=SYSDATETIME()\n(KHÔNG xoá cứng — còn đơn cũ tham chiếu);
+  :INSERT INTO AuditLogs;
+  :COMMIT;
+  :trả về "Đã lưu sơ đồ ghế (N ghế)";
+  stop
+
+case ([Tạm ngưng / Khôi phục])
+  |Hệ thống (Servlet + Service)|
+  :deactivateRoom(roomId, actor)\nhoặc activateRoom(roomId, actor);
+  :assertRoomScope(actor, roomId);
+
+  |Cơ sở dữ liệu|
+  :UPDATE Rooms\nSET Status='inactive' hoặc 'active';
+  :INSERT INTO AuditLogs;
+  :trả về "Đã tạm ngưng / khôi phục\nhoạt động phòng chiếu";
+  stop
+
+case ([Xoá phòng chiếu])
+  |Hệ thống (Servlet + Service)|
+  :AdminService.deleteRoom(roomId, actor);
+  :assertRoomScope(actor, roomId);
+
+  |Cơ sở dữ liệu|
+  :BEGIN TRANSACTION;
+  :đếm suất chiếu / đơn đặt vé\nđang tham chiếu phòng này;
+  if (Có dữ liệu tham chiếu?) then ([Chưa có — xoá cứng])
+    :DELETE FROM Seats WHERE RoomId=?;
+    :DELETE FROM Rooms WHERE Id=?;
+  else ([Còn dữ liệu — xoá mềm])
+    :UPDATE Rooms SET Status='deleted';
+    note right
+      Giá trị 'deleted' CHỈ hợp lệ từ fix40. Trước đó
+      CK_Rooms_Status chỉ cho 'active'/'inactive' nên
+      nhánh xoá mềm chưa bao giờ chạy được, và
+      SQLException bị bắt rồi hiển thị nhầm thành
+      lỗi dữ liệu người dùng.
+    end note
+  endif
+  :INSERT INTO AuditLogs;
+  :COMMIT;
+  :trả về "Đã cập nhật trạng thái /\nxoá phòng chiếu thành công";
+  stop
+
+endswitch
+
+@enduml

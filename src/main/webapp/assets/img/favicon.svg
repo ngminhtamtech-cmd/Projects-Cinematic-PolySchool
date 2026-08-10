@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CineBook">
+  <rect width="64" height="64" rx="14" fill="#6d28d9"/>
+  <path d="M14 23h36v27H14z" fill="#fff"/>
+  <path d="M14 23 20 13h9l-6 10zm13 0 6-10h9l-6 10zm13 0 6-10h4v10z" fill="#fbbf24"/>
+  <path d="m28 31 12 6-12 6z" fill="#6d28d9"/>
+</svg>

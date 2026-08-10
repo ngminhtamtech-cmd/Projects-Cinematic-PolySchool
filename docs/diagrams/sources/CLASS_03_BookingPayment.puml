@@ -1,0 +1,161 @@
+' =============================================================================
+'  CineBook — Class Diagram: Booking & Payment (lõi đặt vé, giữ ghế, thanh toán)
+'  Nguồn: báo cáo khảo sát Service/DAO (BookingService 1399 dòng, transition
+'  kernel BookingStateMachine/BookingTransitionService/BookingCommandStore).
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 CLASS_03_BookingPayment.puml
+' =============================================================================
+@startuml CLASS_03_BookingPayment
+title Class Diagram — Booking & Payment
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+class BookingPageServlet <<controller>> {
+  + doGet(req, res)
+}
+class OrderServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+}
+class "controller.booking.ShowtimeSeatServlet" as ShowtimeSeatServlet <<controller>> {
+  + doGet(req, res)
+}
+class "api.v1.OrderApiServlet" as OrderApiServlet <<controller>> {
+  + doGet(req, res)
+}
+class PromotionServlet <<controller>> {
+  + doGet(req, res)
+}
+
+class BookingService <<service>> {
+  + findShowtime(id)
+  + bookingEligibility(id)
+  + getSeatMap(showtimeId)
+  + seatMapVersion(showtimeId)
+  + getHoldStatus(orderId, userId)
+  + createDraftOrder(userId, showtimeId, seatIds, ...)
+  + payOrder(userId, orderId, comboSel, promoCode, method[, idemKey])
+  + resolvePromotion(code[, userId][, userTier])
+  + cancelUserDraftOrder(userId, orderId)
+  + findOrderHistory(userId)
+  + findTicketForUser(ticketCode, userId)
+  + {static} holdMinutes() : int
+  + {static} generateTicketCode() : String
+}
+class BookingStateMachine <<service>> {
+  + allowedTransitions(state) : Set<State>
+}
+class BookingTransitionService <<service>> {
+  + transition(order, command, actor) : TransitionResult
+}
+class BookingCommandStore <<service>> {
+  + recordExecution(actorScope, commandType, idemKey, ...)
+  + findExecution(actorScope, commandType, idemKey)
+}
+class HoldSweeper <<service>> {
+  + sweepOnce() : SweepResult
+  - releaseExpiredHolds()
+  - sendCounterReminders()
+  - cancelExpiredCounterOrders()
+  - cancelOrphanDraftOrders()
+  - cleanupLoginAttempts()
+}
+
+interface "service.payment.PaymentGateway" as PaymentGateway <<interface>> {
+  + createPayment(order, method) : PaymentResult
+  + verifyCallback(payload) : PaymentResult
+}
+class "service.payment.SimulatedGateway" as SimulatedGateway implements PaymentGateway
+class "service.payment.PaymentResult" as PaymentResult <<dto>>
+
+class InvoiceService <<service>> {
+  + issueSale(orderId)
+  + issueRefundAdjustment(orderId, amount)
+  + renderPdf(Invoice, OrderRecord, OutputStream)
+  + {static} calculateVat(total, rate)
+}
+
+interface ShowtimeSeatDAO <<repository>> {
+  + findSeatMap(showtimeId)
+  + lockSeats(...)
+  + markHeld(...)
+  + releaseExpiredHolds(showtimeId)
+  + markBooked(...)
+  + countActiveHoldsByUser(userId)
+}
+class JdbcShowtimeSeatDAO <<repository>> implements ShowtimeSeatDAO
+
+interface ComboFoodDAO <<repository>> {
+  + findActive()
+  + findActiveForCinema(cinemaId)
+  + findByIds(ids[, cinemaId])
+}
+class JdbcComboFoodDAO <<repository>> implements ComboFoodDAO
+
+interface PromotionDAO <<repository>> {
+  + findByCode(code)
+  + findById(Connection, id)
+  + incrementUsedCount(id)
+}
+class JdbcPromotionDAO <<repository>> implements PromotionDAO
+
+interface PromotionUsageDAO <<repository>> {
+  + findUsableVoucherId(...)
+  + countForUser(promoId, userId)
+  + record(...)
+  + consumeVoucher(...)
+}
+class JdbcPromotionUsageDAO <<repository>> implements PromotionUsageDAO
+
+interface OrderDAO <<repository>> {
+  + insertDraftOrder(...)
+  + insertOrderSeats(...)
+  + findPendingOrderForUpdate(...)
+  + markPaid(...)
+  + confirmCounterOrder(...)
+  + findHistoryByUserId(userId)
+  + redeemTicketByCode(...)
+  + cancelOrderById(...)
+  + updateOrderRefund(...)
+}
+class JdbcOrderDAO <<repository>> implements OrderDAO
+
+interface InvoiceDAO <<repository>> {
+  + findSaleByOrderId(orderId)
+  + findByOrderId(orderId)
+  + insert(Connection, Invoice)
+  + updatePdfPath(...)
+}
+class JdbcInvoiceDAO <<repository>> implements InvoiceDAO
+
+BookingPageServlet --> BookingService
+OrderServlet --> BookingService
+ShowtimeSeatServlet --> BookingService
+OrderApiServlet --> BookingService
+PromotionServlet --> BookingService
+
+BookingService --> ShowtimeDAO
+BookingService --> ShowtimeSeatDAO
+BookingService --> ComboFoodDAO
+BookingService --> PromotionDAO
+BookingService --> PromotionUsageDAO
+BookingService --> OrderDAO
+BookingService --> UserDAO
+BookingService --> "service.LoyaltyService" : addPointsOnPayment()
+BookingService --> PaymentGateway
+BookingService --> InvoiceService
+BookingService ..> "service.EmailService" : sendTicket()
+BookingService --> BookingTransitionService
+BookingTransitionService --> BookingStateMachine
+BookingTransitionService --> BookingCommandStore
+HoldSweeper --> ShowtimeSeatDAO
+HoldSweeper --> OrderDAO
+HoldSweeper ..> "service.EmailService" : sendCounterReminder(),\nsendShowtimeCancellation()
+InvoiceService --> InvoiceDAO
+InvoiceService ..> OrderDAO
+SimulatedGateway ..> PaymentResult
+
+interface "dao.UserDAO" as UserDAO <<repository>>
+@enduml

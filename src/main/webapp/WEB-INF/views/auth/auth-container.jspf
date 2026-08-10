@@ -1,0 +1,517 @@
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="cb" tagdir="/WEB-INF/tags" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
+
+<!-- 5-LAYER ANIMATED CINEMATIC BACKGROUND -->
+<div class="cinematic-bg-layer1"></div>
+<div class="cinematic-bg-layer2"></div>
+<div class="cinematic-bg-layer3" id="particleContainer"></div>
+<div class="cinematic-bg-layer4">
+    <div class="light-streak"></div>
+    <div class="light-streak secondary"></div>
+    <div class="light-streak tertiary"></div>
+</div>
+<div class="cinematic-bg-layer5"></div>
+
+<!-- MAIN LUXURY GLASS CONTAINER -->
+<div class="auth-glass-container ${activeAuthMode}" id="authGlassContainer">
+    <!-- SHOWCASE AREA (DARK PANEL) -->
+    <section class="auth-showcase-luxury">
+        <!-- BRAND LOGO HEADER (COMMON) -->
+        <a class="auth-brand-header" href="${pageContext.request.contextPath}/home" aria-label="CineBook Trang chủ">
+            <div class="auth-brand-logo-badge">
+                <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10 10.5C10 9.67157 10.6716 9 11.5 9H20.5C21.3284 9 22 9.67157 22 10.5V21.5C22 22.3284 21.3284 23 20.5 23H11.5C10.6716 23 10 22.3284 10 21.5V10.5Z" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M14.5 13L19 16L14.5 19V13Z" fill="white"/>
+                </svg>
+            </div>
+            <div class="auth-brand-text">
+                <span class="auth-brand-title">Cine<span class="accent">Book</span></span>
+                <span class="auth-brand-sub">Đặt vé xem phim</span>
+            </div>
+        </a>
+
+        <!-- LOGIN SHOWCASE BLOCK -->
+        <div class="auth-showcase-block for-login">
+            <div style="margin: 28px 0 20px;">
+                <div class="auth-role-eyebrow">
+                    MEMBER &nbsp;•&nbsp; MANAGER &nbsp;•&nbsp; ADMIN
+                </div>
+                <h1 class="auth-headline-luxury">
+                    Quay lại rạp phim, suất chiếu và ghế yêu thích của bạn.
+                </h1>
+                <p class="auth-desc-luxury">
+                    Đăng nhập để đặt vé, xem QR ticket, quản lý nghiệp vụ rạp hoặc vào system panel theo đúng vai trò được cấp.
+                </p>
+            </div>
+            <div class="auth-feature-grid">
+                <div class="auth-feature-card">
+                    <div class="auth-feature-icon-wrap">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M7 13h10v4a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-4z"/>
+                            <path d="M4 11a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2H4v-2z"/>
+                            <path d="M6 9V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4"/>
+                            <path d="M6 19v2"/>
+                            <path d="M18 19v2"/>
+                        </svg>
+                    </div>
+                    <span class="auth-feature-text">Giữ ghế<br>tạm thời</span>
+                </div>
+                <div class="auth-feature-card">
+                    <div class="auth-feature-icon-wrap">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <path d="M14 14h3v3h-3z"/>
+                            <path d="M17 17h4v4h-4z"/>
+                        </svg>
+                    </div>
+                    <span class="auth-feature-text">QR vé sau<br>thanh toán</span>
+                </div>
+                <div class="auth-feature-card">
+                    <div class="auth-feature-icon-wrap">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <path d="m9 12 2 2 4-4"/>
+                        </svg>
+                    </div>
+                    <span class="auth-feature-text">Phân quyền<br>rõ ràng</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- REGISTER SHOWCASE BLOCK -->
+        <div class="auth-showcase-block for-register">
+            <div style="margin: 28px 0 20px;">
+                <div class="auth-role-eyebrow">
+                    QUICK ONBOARDING &nbsp;•&nbsp; JOIN CINEBOOK
+                </div>
+                <h1 class="auth-headline-luxury">
+                    Tạo tài khoản để chọn phim, chọn ghế và lưu vé QR.
+                </h1>
+                <p class="auth-desc-luxury">
+                    Tài khoản mới mặc định là Member, phù hợp với luồng khách hàng public và booking theo tài liệu BA.
+                </p>
+            </div>
+            <div class="auth-feature-grid">
+                <div class="auth-feature-card">
+                    <div class="auth-feature-icon-wrap">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                            <polyline points="13 2 13 9 20 9"/>
+                        </svg>
+                    </div>
+                    <span class="auth-feature-text">Đặt vé trong<br>vài chạm</span>
+                </div>
+                <div class="auth-feature-card">
+                    <div class="auth-feature-icon-wrap">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <span class="auth-feature-text">Lưu lịch sử<br>vé xem phim</span>
+                </div>
+                <div class="auth-feature-card">
+                    <div class="auth-feature-icon-wrap">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                        </svg>
+                    </div>
+                    <span class="auth-feature-text">Đánh giá<br>phim chiếu</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- FORGOT PASSWORD SHOWCASE BLOCK -->
+        <div class="auth-showcase-block for-forgot">
+            <div style="margin: 28px 0 20px;">
+                <div class="auth-role-eyebrow">
+                    ACCOUNT RECOVERY &nbsp;•&nbsp; RECOVERY FLOW
+                </div>
+                <h1 class="auth-headline-luxury">
+                    Khôi phục quyền truy cập để tiếp tục hành trình rạp phim.
+                </h1>
+                <p class="auth-desc-luxury">
+                    Nhập email đã đăng ký, hệ thống sẽ gửi liên kết đặt lại mật khẩu. Liên kết chỉ dùng được một lần và hết hạn sau 30 phút.
+                </p>
+            </div>
+            <div class="auth-feature-grid">
+                <div class="auth-feature-card">
+                    <div class="auth-feature-icon-wrap">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                        </svg>
+                    </div>
+                    <span class="auth-feature-text">Liên kết dùng<br>một lần</span>
+                </div>
+                <div class="auth-feature-card">
+                    <div class="auth-feature-icon-wrap">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <span class="auth-feature-text">Hết hạn sau<br>30 phút</span>
+                </div>
+                <div class="auth-feature-card">
+                    <div class="auth-feature-icon-wrap">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                    </div>
+                    <span class="auth-feature-text">Bảo mật<br>tài khoản</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FORM AREA (WHITE CARD PANEL) -->
+    <main class="auth-card-luxury">
+        <!-- LOGIN FORM BLOCK -->
+        <div class="auth-form-block for-login">
+            <div class="auth-card-eyebrow">
+                — &nbsp; WELCOME BACK &nbsp; ✨
+            </div>
+            <h2 class="auth-card-title">Đăng nhập</h2>
+            <p class="auth-card-subtitle">
+                Tiếp tục đặt vé hoặc quản lý hệ thống <strong>CineBook</strong>.
+            </p>
+
+            <c:if test="${activeAuthMode eq 'is-login'}">
+                <%@ include file="/WEB-INF/views/shared/flash.jspf" %>
+            </c:if>
+
+            <c:if test="${not empty param.error}">
+                <c:set var="authErrorMessage">
+                    <c:choose>
+                        <c:when test="${param.error eq 'locked'}">Tài khoản của bạn đã bị khóa. Vui lòng gửi đơn kháng cáo để được xem xét mở khóa.</c:when>
+                        <c:when test="${param.error eq 'deleted'}">Tài khoản của bạn không còn hiệu lực. Vui lòng liên hệ quản trị viên.</c:when>
+                        <c:when test="${param.error eq 'rolechanged'}">Quyền của tài khoản đã thay đổi, vui lòng đăng nhập lại.</c:when>
+                        <c:when test="${param.error eq 'session'}">Phiên làm việc đã kết thúc, vui lòng đăng nhập lại.</c:when>
+                    </c:choose>
+                </c:set>
+                <c:if test="${not empty fn:trim(authErrorMessage)}">
+                    <div style="margin-bottom: 14px; padding: 10px 12px; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px;">
+                        <p style="margin: 0; color: #991b1b; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            ${fn:escapeXml(authErrorMessage)}
+                        </p>
+                    </div>
+                </c:if>
+            </c:if>
+
+            <c:if test="${isLockedAccount or param.error eq 'locked'}">
+                <div style="margin-bottom: 14px; padding: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; text-align: center;">
+                    <p style="margin: 0 0 8px 0; color: #92400e; font-size: 0.85rem; font-weight: 600;">Bạn muốn yêu cầu Quản trị viên xem xét lại?</p>
+                    <a href="${pageContext.request.contextPath}/appeal?email=${fn:escapeXml(lockedUserEmail)}" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: #ef4444; color: #ffffff; font-weight: 700; text-decoration: none; border-radius: 8px; font-size: 0.82rem;">
+                        ⚖️ Gửi Đơn Kháng Cáo Mở Khóa
+                    </a>
+                </div>
+            </c:if>
+
+            <form class="auth-form" method="post" action="${pageContext.request.contextPath}/login">
+                <cb:csrf/>
+                <input type="hidden" name="returnUrl" value="<c:out value='${not empty param.returnUrl ? param.returnUrl : returnUrl}'/>">
+
+                <!-- EMAIL FIELD -->
+                <div class="auth-field-group">
+                    <label class="auth-field-label" for="loginEmailInput">Email</label>
+                    <div class="auth-input-wrapper">
+                        <span class="input-icon-left">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                <polyline points="22,6 12,13 2,6"/>
+                            </svg>
+                        </span>
+                        <input type="email" id="loginEmailInput" name="email" value="${fn:escapeXml(param.email)}" required autocomplete="email" placeholder="khanh.linh@cinebook.local">
+                        <span class="input-icon-right" title="Email hợp lệ">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- PASSWORD FIELD -->
+                <div class="auth-field-group">
+                    <label class="auth-field-label" for="loginPasswordInput">Mật khẩu</label>
+                    <div class="auth-input-wrapper">
+                        <span class="input-icon-left">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </span>
+                        <input type="password" id="loginPasswordInput" name="password" required autocomplete="current-password" placeholder="••••••••">
+                        <button type="button" class="input-icon-right" onclick="togglePasswordVisibility('loginPasswordInput', 'eyeIconLogin')" title="Ẩn/Hiện mật khẩu" aria-label="Toggle password visibility">
+                            <svg id="eyeIconLogin" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- OPTIONS ROW -->
+                <div class="auth-options-row">
+                    <label class="auth-checkbox-label">
+                        <input type="checkbox" name="rememberMe" value="true" checked>
+                        <span>Ghi nhớ đăng nhập</span>
+                    </label>
+                    <a href="${pageContext.request.contextPath}/forgot-password" class="auth-forgot-link" onclick="switchAuthMode(event, 'is-forgot', '${pageContext.request.contextPath}/forgot-password', 'Quên mật khẩu - CineBook')">Quên mật khẩu?</a>
+                </div>
+
+                <!-- SUBMIT BUTTON -->
+                <button type="submit" class="auth-submit-btn">
+                    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                        <polyline points="10 17 15 12 10 7"/>
+                        <line x1="15" y1="12" x2="3" y2="12"/>
+                    </svg>
+                    Đăng nhập
+                </button>
+            </form>
+
+            <div class="auth-divider">
+                <span>Hoặc</span>
+            </div>
+
+            <p class="auth-footer-text">
+                Chưa có tài khoản? <a href="${pageContext.request.contextPath}/register" onclick="switchAuthMode(event, 'is-register', '${pageContext.request.contextPath}/register', 'Đăng ký - CineBook')"><strong>Đăng ký ngay ›</strong></a>
+            </p>
+        </div>
+
+        <!-- REGISTER FORM BLOCK -->
+        <div class="auth-form-block for-register">
+            <div class="auth-card-eyebrow">
+                — &nbsp; JOIN CINEBOOK &nbsp; 🚀
+            </div>
+            <h2 class="auth-card-title">Tạo tài khoản</h2>
+            <p class="auth-card-subtitle">
+                Tài khoản mới mặc định là <strong>Member</strong>.
+            </p>
+
+            <c:if test="${activeAuthMode eq 'is-register'}">
+                <%@ include file="/WEB-INF/views/shared/flash.jspf" %>
+            </c:if>
+
+            <form class="auth-form" method="post" action="${pageContext.request.contextPath}/register">
+                <cb:csrf/>
+
+                <!-- FULL NAME -->
+                <div class="auth-field-group">
+                    <label class="auth-field-label" for="regFullName">Họ tên</label>
+                    <div class="auth-input-wrapper">
+                        <span class="input-icon-left">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                        </span>
+                        <input type="text" id="regFullName" name="fullName" required autocomplete="name" value="${fn:escapeXml(formFullName)}" placeholder="Nguyễn Văn A">
+                    </div>
+                </div>
+
+                <!-- EMAIL FIELD -->
+                <div class="auth-field-group">
+                    <label class="auth-field-label" for="regEmail">Email</label>
+                    <div class="auth-input-wrapper">
+                        <span class="input-icon-left">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                <polyline points="22,6 12,13 2,6"/>
+                            </svg>
+                        </span>
+                        <input type="email" id="regEmail" name="email" required autocomplete="email" value="${fn:escapeXml(formEmail)}" placeholder="email@example.com">
+                    </div>
+                </div>
+
+                <!-- PASSWORD FIELD -->
+                <div class="auth-field-group">
+                    <label class="auth-field-label" for="regPassword">Mật khẩu</label>
+                    <div class="auth-input-wrapper">
+                        <span class="input-icon-left">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </span>
+                        <input type="password" id="regPassword" name="password" required minlength="10" autocomplete="new-password" placeholder="••••••••">
+                        <button type="button" class="input-icon-right" onclick="togglePasswordVisibility('regPassword', 'eyeIconReg')" title="Ẩn/Hiện mật khẩu" aria-label="Toggle password visibility">
+                            <svg id="eyeIconReg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- CONFIRM PASSWORD FIELD -->
+                <div class="auth-field-group">
+                    <label class="auth-field-label" for="regConfirmPassword">Xác nhận mật khẩu</label>
+                    <div class="auth-input-wrapper">
+                        <span class="input-icon-left">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                        </span>
+                        <input type="password" id="regConfirmPassword" name="confirmPassword" required minlength="10" autocomplete="new-password" placeholder="••••••••">
+                    </div>
+                </div>
+
+                <p style="margin: 0 0 14px 0; font-size: 0.78rem; color: #64748b; line-height: 1.4;">
+                    Mật khẩu tối thiểu 10 ký tự, gồm ít nhất 3 trong 4 nhóm: chữ thường, chữ hoa, chữ số, ký tự đặc biệt.
+                </p>
+
+                <!-- SUBMIT BUTTON -->
+                <button type="submit" class="auth-submit-btn">
+                    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="8.5" cy="7" r="4"/>
+                        <line x1="20" y1="8" x2="20" y2="14"/>
+                        <line x1="23" y1="11" x2="17" y2="11"/>
+                    </svg>
+                    Đăng ký
+                </button>
+            </form>
+
+            <div class="auth-divider">
+                <span>Hoặc</span>
+            </div>
+
+            <p class="auth-footer-text">
+                Đã có tài khoản? <a href="${pageContext.request.contextPath}/login" onclick="switchAuthMode(event, 'is-login', '${pageContext.request.contextPath}/login', 'Đăng nhập - CineBook')"><strong>Đăng nhập ngay ›</strong></a>
+            </p>
+        </div>
+
+        <!-- FORGOT PASSWORD FORM BLOCK -->
+        <div class="auth-form-block for-forgot">
+            <div class="auth-card-eyebrow">
+                — &nbsp; ACCOUNT RECOVERY &nbsp; 🔑
+            </div>
+            <h2 class="auth-card-title">Quên mật khẩu</h2>
+            <p class="auth-card-subtitle">
+                Gửi yêu cầu khôi phục tài khoản <strong>CineBook</strong>.
+            </p>
+
+            <c:if test="${activeAuthMode eq 'is-forgot'}">
+                <%@ include file="/WEB-INF/views/shared/flash.jspf" %>
+            </c:if>
+
+            <form class="auth-form" method="post" action="${pageContext.request.contextPath}/forgot-password">
+                <cb:csrf/>
+
+                <!-- EMAIL FIELD -->
+                <div class="auth-field-group" style="margin-bottom: 20px;">
+                    <label class="auth-field-label" for="forgotEmailInput">Email đã đăng ký</label>
+                    <div class="auth-input-wrapper">
+                        <span class="input-icon-left">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                <polyline points="22,6 12,13 2,6"/>
+                            </svg>
+                        </span>
+                        <input type="email" id="forgotEmailInput" name="email" required autocomplete="email" placeholder="email@example.com">
+                    </div>
+                </div>
+
+                <!-- SUBMIT BUTTON -->
+                <button type="submit" class="auth-submit-btn">
+                    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                    Gửi yêu cầu
+                </button>
+            </form>
+
+            <div class="auth-divider">
+                <span>Hoặc</span>
+            </div>
+
+            <p class="auth-footer-text">
+                <a href="${pageContext.request.contextPath}/login" onclick="switchAuthMode(event, 'is-login', '${pageContext.request.contextPath}/login', 'Đăng nhập - CineBook')"><strong>‹ Quay lại đăng nhập</strong></a>
+            </p>
+        </div>
+    </main>
+</div>
+
+<!-- DYNAMIC INTERACTION SCRIPT -->
+<script>
+    function togglePasswordVisibility(inputId, iconId) {
+        var input = document.getElementById(inputId);
+        var icon = document.getElementById(iconId);
+        if (input && icon) {
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+            } else {
+                input.type = 'password';
+                icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+            }
+        }
+    }
+
+    function switchAuthMode(event, modeClass, targetUrl, pageTitle) {
+        if (event && (event.metaKey || event.ctrlKey || event.shiftKey)) {
+            return;
+        }
+        if (event) {
+            event.preventDefault();
+        }
+        var container = document.getElementById('authGlassContainer');
+        if (container) {
+            container.classList.remove('is-login', 'is-register', 'is-forgot');
+            container.classList.add(modeClass);
+            if (targetUrl) {
+                history.pushState({ mode: modeClass }, pageTitle || '', targetUrl);
+            }
+            if (pageTitle) {
+                document.title = pageTitle;
+            }
+        }
+    }
+
+    window.addEventListener('popstate', function(e) {
+        var path = window.location.pathname;
+        var container = document.getElementById('authGlassContainer');
+        if (!container) return;
+        container.classList.remove('is-login', 'is-register', 'is-forgot');
+        if (path.indexOf('/register') !== -1) {
+            container.classList.add('is-register');
+            document.title = "Đăng ký - CineBook";
+        } else if (path.indexOf('/forgot-password') !== -1) {
+            container.classList.add('is-forgot');
+            document.title = "Quên mật khẩu - CineBook";
+        } else {
+            container.classList.add('is-login');
+            document.title = "Đăng nhập - CineBook";
+        }
+    });
+
+    (function generateParticles() {
+        var container = document.getElementById('particleContainer');
+        if (!container) return;
+        var particleCount = 35;
+        for (var i = 0; i < particleCount; i++) {
+            var p = document.createElement('div');
+            p.className = 'particle';
+            var size = Math.random() * 3.5 + 1.5;
+            p.style.width = size + 'px';
+            p.style.height = size + 'px';
+            p.style.left = Math.random() * 100 + '%';
+            p.style.setProperty('--duration', (Math.random() * 12 + 8) + 's');
+            p.style.setProperty('--base-opacity', (Math.random() * 0.55 + 0.35).toString());
+            p.style.setProperty('--drift', (Math.random() * 80 - 40) + 'px');
+            p.style.animationDelay = (Math.random() * 10) + 's';
+            container.appendChild(p);
+        }
+    })();
+</script>

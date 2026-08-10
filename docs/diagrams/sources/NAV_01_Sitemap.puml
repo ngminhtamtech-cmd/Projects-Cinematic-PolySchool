@@ -1,0 +1,141 @@
+' =============================================================================
+'  CineBook — Navigation / Sitemap Diagram, chia theo actor
+'  Nguồn: WEB-INF/views/shared/public-header.jspf + public-footer.jspf,
+'  WEB-INF/views/staff/sidebar.jspf, WEB-INF/views/admin/sidebar.jspf,
+'  WEB-INF/views/system/sidebar.jspf (báo cáo khảo sát JSP/Next.js).
+'  Chỉ vẽ màn hình & chuyển hướng chính — không vẽ mọi liên kết nhỏ.
+'  Dùng @startwbs (cây phân cấp, đường nối thẳng, không nét cong).
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 NAV_01_Sitemap.puml
+' =============================================================================
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  NAV 1 — Public / Guest                                                    ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startwbs NAV_01_Public
+title Navigation/Sitemap — Public (Guest), nguồn: shared/public-header.jspf + public-footer.jspf
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+
+* Trang chủ (/home)
+** Phim (/films)
+*** Đang chiếu / Sắp chiếu
+*** Chi tiết phim (/films/{id})
+** CineTag# (/cinetags?tag=...)
+*** Movie-verse / Fan Wibu / Inner Child / #Yolo
+** Góc Điện Ảnh (/goc-dien-anh)
+*** Thể Loại (/the-loai)
+*** Đạo Diễn (/dao-dien)
+*** Bình Luận (/binh-luan)
+*** Blog (/blog)
+** Sự Kiện (/su-kien)
+*** Ưu Đãi (/uu-dai)
+*** Phim Hay Tháng (/phim-hay)
+** Rạp / Giá vé (/showtimes?cinemaId=...)
+** Rạp Đặc Biệt (/rap-dac-biet)
+** Tìm kiếm phim (/films?q=...)
+** Đăng Nhập (/login) / Đăng Ký (/register)
+** Điều kiện hoàn tiền (/refund-policy) [footer]
+@endwbs
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  NAV 2 — Member                                                            ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startwbs NAV_02_Member
+title Navigation/Sitemap — Member (sau đăng nhập), nguồn: dropdown avatar public-header.jspf
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+
+* Trang chủ (/home)
+** Đặt vé (/booking?showtimeId=...)
+*** Tạo đơn (/orders — POST)
+*** Thanh toán (/orders/{id}/pay)
+** Thành Viên & Loyalty (/member/loyalty)
+** Vé của tôi (/orders/history)
+*** Xem QR & hoá đơn (/tickets/qr/{code}, /invoices/{id})
+*** Kháng nghị hoàn vé (/ticket-refund-appeal)
+** Hồ sơ (/profile)
+*** Đổi mật khẩu / Xoá tài khoản
+*** Xuất dữ liệu cá nhân (/profile/export)
+** Đăng xuất (/logout)
+@endwbs
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  NAV 3 — Staff                                                             ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startwbs NAV_03_Staff
+title Navigation/Sitemap — Staff, nguồn: staff/sidebar.jspf (rail riêng, không dùng chung admin/sidebar.jspf)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+
+* Staff (Nhân viên quầy vé)
+** Soát vé & Thu tiền (/staff/checkin) [mặc định]
+*** Tra cứu vé bằng Mã/QR
+*** Check-in (action=redeem)
+*** Thu tiền mặt (action=markPaid)
+** Vé của tôi (/orders/history)
+** Hồ sơ (/profile)
+** Về khu quản trị (/admin/dashboard)\n[chỉ hiện nếu actor cũng là manager/admin]
+** Đăng xuất (/logout)
+@endwbs
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  NAV 4 — Manager                                                           ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startwbs NAV_04_Manager
+title Navigation/Sitemap — Manager, nguồn: admin/sidebar.jspf (dùng chung cho /admin/*)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+
+* Manager (Quản lý rạp)
+** Tổng quan
+*** Dashboard (/admin/dashboard)
+*** Thông báo (/admin/notifications)
+** Vận hành
+*** Phim (/admin/films)
+*** Rạp / Cơ sở (/admin/cinemas)
+*** Phòng chiếu (/admin/rooms)
+*** Suất chiếu (/admin/showtimes)
+** Khách hàng
+*** Thành viên (/admin/users)
+*** Nhân viên quầy vé (/admin/staff)
+*** Bình luận (/admin/comments)
+*** Đơn kháng cáo (/admin/appeals)
+*** Đơn vé (/admin/orders)
+** Kinh doanh
+*** Bắp nước & Combo (/admin/combos)
+*** Báo cáo (/admin/reports)
+** Trang public (/home) [footer sidebar]
+** Đăng xuất (/logout) [footer sidebar]
+@endwbs
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  NAV 5 — Admin                                                             ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startwbs NAV_05_Admin
+title Navigation/Sitemap — Admin, nguồn: admin/sidebar.jspf + system/sidebar.jspf (chỉ admin)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+
+* Admin (Quản trị hệ thống)
+** Tất cả mục của Manager\n(Tổng quan/Vận hành/Khách hàng/Kinh doanh — xem NAV_04)
+** Kinh doanh (bổ sung, chỉ admin)
+*** Khuyến mãi (/admin/promotions)
+** Nội dung (chỉ admin)
+*** CineTag# Merchandise (/admin/films?tab=custom&sub=cinetag)
+*** Ưu Đãi (/admin/films?tab=custom&sub=uudai)
+*** Phim Hay Tháng (/admin/films?tab=custom&sub=phimhay)
+** Hệ thống (/system/*, chỉ admin)
+*** Tài khoản Quản lý (/system/managers)
+*** Cấu hình (/system/config)
+*** Nhật ký hoạt động (/system/audit-logs)
+*** Sao lưu CSDL (/system/backup)
+@endwbs

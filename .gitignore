@@ -1,0 +1,42 @@
+target/
+db.properties
+db.test.properties
+web/.env.local
+web/.next/
+web/node_modules/
+
+# Environment files may contain secrets. Keep only committed templates.
+.env
+.env.*
+!.env.example
+web/.env*
+!web/.env.example
+
+# Runtime/generated data
+tmp/
+output/
+src/main/webapp/assets/uploads/
+src/main/java/scratch/
+logs/
+*.log
+*.bak
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Local IDE/agent state
+.claude/
+.vscode/
+
+# Generated reports and locally bundled tools
+*.docx
+*.pdf
+*.pptx
+admin.jar
+tools/plantuml/plantuml.jar
+scripts/backup/
+CineBook Admin Dashboard/
+# Ban chup route cua lan chay hien tai (scripts\route-baseline.bat).
+# Ban THAM CHIEU la docs/baseline-routes-before.txt - file do co commit.
+docs/baseline-routes-current.txt

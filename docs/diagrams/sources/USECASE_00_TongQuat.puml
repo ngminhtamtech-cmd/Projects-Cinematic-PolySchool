@@ -1,0 +1,115 @@
+' =============================================================================
+'  CineBook — Use Case TỔNG QUÁT (Master Diagram)
+'  Vẽ lại NGUYÊN VẸN nội dung/actor/quan hệ đã được duyệt trong
+'  back-up/back-up/usecase/usecase_tong_quat.png (ảnh gốc không có file .puml
+'  nguồn — bản này transcribe lại 1-1 từ ảnh: đủ 5 actor, đủ use case theo
+'  từng actor, đủ 12 quan hệ <<include>> hội tụ về "Đăng nhập"). Không thêm/bớt
+'  actor, use case hay quan hệ so với ảnh gốc đã duyệt.
+'  Đối chiếu: usecase/README.md mục 3 (mô tả ngôn ngữ tự nhiên từng actor).
+'
+'  QUY TẮC ÁP DỤNG (theo CINEBOOK_DIAGRAM_STYLE_AND_PLAN.md mục 4):
+'   - actor → use case: nét liền thẳng, KHÔNG mũi tên.
+'   - use case ..> "Đăng nhập": nét đứt gập vuông (ortho), mũi tên CHỈ tại đích
+'     "Đăng nhập", nhãn <<include>>.
+'
+'  Render: java -jar tools/plantuml.jar -tsvg -charset UTF-8 USECASE_00_TongQuat.puml
+'          java -jar tools/plantuml.jar -tpng -charset UTF-8 -DPLANTUML_LIMIT_SIZE=16384 USECASE_00_TongQuat.puml
+' =============================================================================
+@startuml USECASE_00_TongQuat
+title HỆ THỐNG CINEBOOK — BÁN VÉ XEM PHIM TRỰC TUYẾN\nSơ đồ Use Case Tổng quát (Master Diagram)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam ArrowThickness 1
+skinparam usecase {
+  BorderColor black
+  BackgroundColor white
+  ArrowColor black
+}
+skinparam actor {
+  BorderColor black
+  BackgroundColor white
+}
+left to right direction
+
+actor "Khách vãng lai\n(guest)" as Guest
+actor "Thành viên\n(member)" as Member
+actor "Nhân viên quầy vé\n(staff)" as Staff
+actor "Quản lý rạp\n(manager)" as Manager
+actor "Quản trị hệ thống\n(admin)" as Admin
+
+rectangle "HỆ THỐNG CINEBOOK — BÁN VÉ XEM PHIM TRỰC TUYẾN" {
+  usecase "Đăng nhập" as UC_Login
+
+  ' --- Guest: không include Đăng nhập (chưa xác thực) ---
+  usecase "Đăng ký tài khoản" as UC_Register
+  usecase "Duyệt nội dung công khai\n(phim / rạp / lịch chiếu)" as UC_BrowsePublic
+  usecase "Kiểm tra mã khuyến mãi" as UC_CheckPromo
+  usecase "Xem chính sách hoàn vé" as UC_ViewRefundPolicy
+  usecase "Quên & khôi phục mật khẩu" as UC_ForgotPassword
+  usecase "Gửi kháng cáo mở khóa\ntài khoản" as UC_AccountAppeal
+
+  ' --- Member ---
+  usecase "Đặt vé & thanh toán" as UC_BookPay
+  usecase "Đánh giá & bình luận phim" as UC_Comment
+  usecase "Quản lý hồ sơ cá nhân" as UC_Profile
+  usecase "Khách hàng thân thiết" as UC_Loyalty
+  usecase "Gửi yêu cầu hoàn tiền" as UC_RefundRequest
+
+  ' --- Staff ---
+  usecase "Vận hành quầy vé" as UC_CounterOps
+  usecase "Quản lý đơn & vé" as UC_StaffOrders
+
+  ' --- Manager & Admin: 3 use case dùng chung ---
+  usecase "Quản lý danh mục &\nvận hành rạp" as UC_CatalogOps
+  usecase "Quản lý người dùng &\nkiểm duyệt" as UC_UserModeration
+  usecase "Quản lý đơn hàng &\nbáo cáo" as UC_OrderReport
+
+  ' --- Admin: riêng ---
+  usecase "Quản trị nội dung &\nkhuyến mãi toàn hệ thống" as UC_GlobalPromo
+  usecase "Cấu hình & vận hành\nhệ thống" as UC_SystemConfig
+}
+
+' ===== Actor — Use Case (nét liền, không mũi tên) =====
+Guest -- UC_Register
+Guest -- UC_BrowsePublic
+Guest -- UC_CheckPromo
+Guest -- UC_ViewRefundPolicy
+Guest -- UC_ForgotPassword
+Guest -- UC_AccountAppeal
+
+Member -- UC_BookPay
+Member -- UC_Comment
+Member -- UC_Profile
+Member -- UC_Loyalty
+Member -- UC_RefundRequest
+
+Staff -- UC_CounterOps
+Staff -- UC_StaffOrders
+
+Manager -- UC_CatalogOps
+Manager -- UC_UserModeration
+Manager -- UC_OrderReport
+
+UC_GlobalPromo -- Admin
+UC_SystemConfig -- Admin
+UC_CatalogOps -- Admin
+UC_UserModeration -- Admin
+UC_OrderReport -- Admin
+
+' ===== <<include>> → Đăng nhập (nét đứt, gập vuông, mũi tên chỉ tại đích) =====
+UC_BookPay ..> UC_Login : <<include>>
+UC_Comment ..> UC_Login : <<include>>
+UC_Profile ..> UC_Login : <<include>>
+UC_Loyalty ..> UC_Login : <<include>>
+UC_RefundRequest ..> UC_Login : <<include>>
+UC_CounterOps ..> UC_Login : <<include>>
+UC_StaffOrders ..> UC_Login : <<include>>
+UC_CatalogOps ..> UC_Login : <<include>>
+UC_UserModeration ..> UC_Login : <<include>>
+UC_OrderReport ..> UC_Login : <<include>>
+UC_GlobalPromo ..> UC_Login : <<include>>
+UC_SystemConfig ..> UC_Login : <<include>>
+
+@enduml

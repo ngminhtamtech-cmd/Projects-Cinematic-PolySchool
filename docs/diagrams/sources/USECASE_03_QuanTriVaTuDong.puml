@@ -1,0 +1,71 @@
+' =============================================================================
+'  CineBook — Use Case chi tiết: Quản trị Toàn quốc & Tiến trình Tự động
+'  (Admin & System Sweeper). Transcribe 1-1 từ
+'  usecase/usecase_quan_tri_va_tu_dong.png (ảnh gốc đã duyệt).
+'  LƯU Ý: nhóm "Tiến trình tự động" KHÔNG có include → Đăng nhập (tiến trình
+'  nền không qua phiên đăng nhập) — giữ đúng như ảnh gốc.
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 USECASE_03_QuanTriVaTuDong.puml
+' =============================================================================
+@startuml USECASE_03_QuanTriVaTuDong
+title HỆ THỐNG CINEBOOK — QUẢN TRỊ TOÀN QUỐC & TIẾN TRÌNH TỰ ĐỘNG\n(Admin & System Sweeper)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+left to right direction
+
+actor "Quản trị hệ thống\n(admin)" as Admin
+actor "Tiến trình tự động\n(system sweeper)" as Sweeper
+
+rectangle "HỆ THỐNG CINEBOOK — QUẢN TRỊ TOÀN QUỐC & TIẾN TRÌNH TỰ ĐỘNG" {
+  usecase "Đăng nhập" as UC_Login
+
+  usecase "Quản lý Khuyến mãi toàn quốc" as UC_GlobalPromo
+  usecase "Quản lý Tài khoản Manager" as UC_ManagerAccount
+  usecase "Cấu hình Thông số hệ thống" as UC_SysConfig
+  usecase "Soạn Chính sách Hoàn vé" as UC_DraftPolicy
+  usecase "Quản lý Nội dung tùy biến" as UC_CustomContent
+  usecase "Giải phóng Ghế giữ chỗ thủ công" as UC_ManualRelease
+  usecase "Xem & Xóa Nhật ký Audit Logs" as UC_AuditLog
+  usecase "Sao lưu & Phục hồi CSDL" as UC_Backup
+
+  usecase "Tự động thu hồi ghế quá hạn (30s)" as UC_AutoReleaseSeat
+  usecase "Tự động hủy đơn quầy quá hạn" as UC_AutoCancelCounter
+  usecase "Tự động hủy đơn nháp mồ côi" as UC_AutoCancelDraft
+  usecase "Gửi Email tự động (Xác thực/Auth)" as UC_AutoEmail
+  usecase "Kiểm tra Schema CSDL khi chạy" as UC_SchemaCheck
+  usecase "Xử lý Thanh toán thẻ qua Gateway" as UC_GatewayPay
+}
+
+Admin -- UC_GlobalPromo
+Admin -- UC_ManagerAccount
+Admin -- UC_SysConfig
+Admin -- UC_DraftPolicy
+Admin -- UC_CustomContent
+Admin -- UC_ManualRelease
+Admin -- UC_AuditLog
+Admin -- UC_Backup
+
+Sweeper -- UC_AutoReleaseSeat
+Sweeper -- UC_AutoCancelCounter
+Sweeper -- UC_AutoCancelDraft
+Sweeper -- UC_AutoEmail
+Sweeper -- UC_SchemaCheck
+Sweeper -- UC_GatewayPay
+
+UC_GlobalPromo ..> UC_Login : <<include>>
+UC_ManagerAccount ..> UC_Login : <<include>>
+UC_SysConfig ..> UC_Login : <<include>>
+UC_DraftPolicy ..> UC_Login : <<include>>
+UC_CustomContent ..> UC_Login : <<include>>
+UC_ManualRelease ..> UC_Login : <<include>>
+UC_AuditLog ..> UC_Login : <<include>>
+UC_Backup ..> UC_Login : <<include>>
+
+note bottom of Sweeper
+  Nhóm "Tiến trình tự động" chạy nền (HoldSweeper,
+  EmailService async, SimulatedGateway) — không qua
+  phiên đăng nhập nên KHÔNG có quan hệ <<include>>
+  tới "Đăng nhập" (giữ đúng ảnh gốc đã duyệt).
+end note
+@enduml

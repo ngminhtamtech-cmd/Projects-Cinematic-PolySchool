@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<!--
+  Khung chung cua moi thu HTML cua CineBook.
+
+  BA RANG BUOC CUA HOP THU, KHONG PHAI SO THICH:
+   1. CSS phai INLINE. Gmail va Outlook cat bo the <style> trong <head>, nen moi khai bao dat o
+      do se bien mat dung luc thu toi tay nguoi nhan — tren may minh thi van dep.
+   2. Bo cuc bang <table>, khong dung flex/grid. Outlook dung engine cua Word de dung trang.
+   3. Khong anh ngoai, khong JavaScript. Anh ngoai bi chan mac dinh va lam thu de bi danh spam.
+
+  O {{{content}}} la o THO (ba ngoac nhon): noi dung chen vao da la HTML da escape san.
+  Xem EmailService.renderHtmlDocument.
+-->
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f5f7;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f4f5f7; padding:24px 12px;">
+<tr>
+<td align="center">
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px; max-width:100%; background-color:#ffffff; border:1px solid #e3e5e8; border-radius:8px;">
+
+<tr>
+<td style="padding:20px 28px; background-color:#1f2937; border-radius:8px 8px 0 0;">
+<span style="font-family:Arial,Helvetica,sans-serif; font-size:18px; font-weight:bold; color:#ffffff;">CineBook</span>
+</td>
+</tr>
+
+<tr>
+<td style="padding:28px; font-family:Arial,Helvetica,sans-serif; font-size:14px; line-height:22px; color:#1f2937;">
+{{{content}}}
+</td>
+</tr>
+
+<tr>
+<td style="padding:16px 28px; border-top:1px solid #e3e5e8; font-family:Arial,Helvetica,sans-serif; font-size:12px; line-height:18px; color:#6b7280;">
+Đây là thư tự động từ hệ thống CineBook, vui lòng không trả lời thư này.
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+</body>
+</html>

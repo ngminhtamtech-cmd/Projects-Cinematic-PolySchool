@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<actions>
+    <action>
+        <actionName>run</actionName>
+        <packagings>
+            <packaging>war</packaging>
+        </packagings>
+        <goals>
+            <goal>package</goal>
+        </goals>
+        <properties>
+            <netbeans.deploy>true</netbeans.deploy>
+            <maven.test.skip>true</maven.test.skip>
+        </properties>
+    </action>
+    <action>
+        <actionName>debug</actionName>
+        <packagings>
+            <packaging>war</packaging>
+        </packagings>
+        <goals>
+            <goal>package</goal>
+        </goals>
+        <properties>
+            <netbeans.deploy>true</netbeans.deploy>
+            <netbeans.deploy.debugmode>true</netbeans.deploy.debugmode>
+            <maven.test.skip>true</maven.test.skip>
+        </properties>
+    </action>
+    <action>
+        <actionName>profile</actionName>
+        <packagings>
+            <packaging>war</packaging>
+        </packagings>
+        <goals>
+            <goal>package</goal>
+        </goals>
+        <properties>
+            <netbeans.deploy>true</netbeans.deploy>
+            <netbeans.deploy.profilemode>true</netbeans.deploy.profilemode>
+            <maven.test.skip>true</maven.test.skip>
+        </properties>
+    </action>
+    <action>
+        <actionName>rebuild</actionName>
+        <packagings>
+            <packaging>war</packaging>
+        </packagings>
+        <goals>
+            <goal>clean</goal>
+            <goal>package</goal>
+        </goals>
+    </action>
+    <action>
+        <actionName>CUSTOM-Full Verify</actionName>
+        <displayName>Full Verify (unit + integration)</displayName>
+        <goals>
+            <goal>clean</goal>
+            <goal>verify</goal>
+        </goals>
+    </action>
+</actions>

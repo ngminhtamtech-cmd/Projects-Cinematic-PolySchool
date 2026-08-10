@@ -1,0 +1,77 @@
+﻿# CineBook — route manifest (QA-01)
+#
+# VAN DE GOC
+#   Script route-baseline.bat cu kiem cac route KHONG CON TON TAI (/auth/login,
+#   /booking/history, /api/v1/catalog/films). Chung tra 404, va vi file baseline goc
+#   cung chua dung 404 do nen script bao "0 route hoi quy" — mot mau xanh gia. Route
+#   that (/login, /orders/history, /api/v1/films) thi khong he duoc kiem.
+#
+# CACH LAM MOI
+#   File nay khai bao TUNG route kem MA HTTP KY VONG theo trang thai dang nhap.
+#   404 khong bao gio duoc coi la "tot" cho mot route bat buoc: neu route can ton tai
+#   ma tra 404 thi day la loi, khong phai baseline.
+#
+#   Danh sach duoc doi chieu voi <url-pattern> trong WEB-INF/web.xml.
+#
+# DINH DANG
+#   <duong-dan> <ky-vong-khi-an-danh> <ky-vong-khi-la-admin>
+#
+#   Ma ky vong co the la mot so (200) hoac nhieu so cach nhau boi "|" (302|401).
+#   Dong bat dau bang # la ghi chu.
+
+# --- Trang cong khai: ai cung xem duoc -------------------------------------
+/home                       200   200
+/films                      200   200
+/cinemas                    200   200
+/showtimes                  200   200
+/cinetags                   200   200
+/goc-dien-anh               200   200
+/su-kien                    200   200
+/rap-dac-biet               200   200
+/login                      200   200
+/register                   200   200
+/forgot-password            200   200
+/appeal                     200   200
+
+# --- Khu vuc thanh vien: an danh bi day ve dang nhap -----------------------
+/profile                    302|401   200
+/orders/history             302|401   200
+/member/loyalty             302|401   200
+
+# --- Khu vuc quan tri: an danh bi tu choi, admin vao duoc ------------------
+/admin/dashboard            302|401|403   200
+/admin/films                302|401|403   200
+/admin/cinemas              302|401|403   200
+/admin/rooms                302|401|403   200
+/admin/showtimes            302|401|403   200
+/admin/orders               302|401|403   200
+/admin/promotions           302|401|403   200
+/admin/users                302|401|403   200
+/admin/staff                302|401|403   200
+/admin/comments             302|401|403   200
+/admin/appeals              302|401|403   200
+/admin/notifications        302|401|403   200
+# Hai route duoi day chinh la hai trang bi loi 500 trong lan quet truoc (DB-01, RP-01).
+/admin/combos               302|401|403   200
+/admin/reports              302|401|403   200
+
+# --- Khu vuc he thong: chi admin ------------------------------------------
+# /system/dashboard chuyen huong sang trang con — 302 la dung, khong phai loi.
+/system/dashboard           302|401|403   302
+/system/config              302|401|403   200
+/system/audit-logs          302|401|403   200
+/system/managers            302|401|403   200
+
+# --- Khu vuc nhan vien ----------------------------------------------------
+# Phan quyen la THU BAC cong don (guest<member<staff<manager<admin), nen admin vao duoc
+# man hinh cua staff. Day la thiet ke, khong phai lo hong.
+/staff/checkin              302|401|403   200
+
+# --- REST API -------------------------------------------------------------
+/api/v1/health              200   200
+/api/v1/auth/csrf           200   200
+/api/v1/cinemas             200   200
+/api/v1/cities              200   200
+/api/v1/combos              200   200
+/api/v1/films               200   200
+/api/v1/layout/header       200   200

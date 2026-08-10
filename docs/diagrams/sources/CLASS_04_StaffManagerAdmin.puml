@@ -1,0 +1,106 @@
+' =============================================================================
+'  CineBook — Class Diagram: Staff / Manager / Admin
+'  Nguồn: báo cáo khảo sát Servlet + Service. AdminService là "god service"
+'  (~7600 dòng): phần lớn CRUD Film/Cinema/Room/Showtime/Promotion/Combo/User
+'  tự viết SQL qua DBConnection, KHÔNG qua tầng dao (đã xác nhận qua khảo sát).
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 CLASS_04_StaffManagerAdmin.puml
+' =============================================================================
+@startuml CLASS_04_StaffManagerAdmin
+title Class Diagram — Staff / Manager / Admin
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+class "controller.staff.StaffPortalServlet" as StaffPortalServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+}
+class "api.v1.StaffApiServlet" as StaffApiServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+}
+class "controller.admin.ManagerPortalServlet" as ManagerPortalServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+  - handleFilmPost(...)
+  - handleCinemaPost(...)
+  - handleRoomPost(...)
+  - handleShowtimePost(...)
+  - handleUserPost(...)
+  - handleStaffPost(...)
+  - handleCommentPost(...)
+  - handleAppealPost(...)
+  - handleComboPost(...)
+  - handlePromotionPost(...)
+  - handleOrderPost(...)
+}
+class "controller.system.SystemPortalServlet" as SystemPortalServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+}
+class "controller.admin.AdminDashboardServlet" as AdminDashboardServlet <<controller>> {
+  + doGet(req, res)
+}
+
+class StaffService <<service>> {
+  + lookupTicket(ticketCode, actor) : TicketLookup
+  + checkIn(ticketCode, actor)
+  + collectPayment(orderId, actor)
+}
+
+class AdminService <<service>> {
+  + listFilms([actor]) / saveFilm(...) / deleteFilm(...)
+  + listCinemas([actor]) / saveCinema(...) / deleteCinema(...)
+  + listRooms([actor]) / saveRoom(...) / deleteRoom(...)
+  + listShowtimes([actor]) / saveShowtimes(batch, actor) / requestShowtimeDeletion(...)
+  + listUsers(role[, actor]) / createMember(...) / lockMemberDirectly(...)
+  + createStaff(...) / lockStaffDirectly(...) / deleteStaff(...)
+  + listComments(...) / warnUserForComment(...) / deleteComment(...)
+  + submitAppeal(...) / appealQueue(...) / resolveAppeal(...)
+  + listPromotions([actor]) / savePromotion(...) / deletePromotion(...)
+  + listCombos(...) / saveCombo(...) / deleteCombo(...)
+  + listOrdersForAdmin(...) / cancelOrder(...) / refundOrder(...) / rejectRefund(...)
+  + redeemTicket(ticketCode, actor[, override, reason])
+  + markCounterOrderPaid(orderId, actor)
+  + dashboardCounts() / dailyRevenueRows() / topFilms() / getReportSummary()
+  + listSettings() / saveSetting(...) / releaseStaleHeldSeats()
+  + listAuditLogs(...) / clearAuditLogs() / backupDatabase()
+}
+
+interface UserAppealDAO <<repository>> {
+  + create([Connection,] appeal)
+  + createRefundAppeal(...)
+  + findPendingByUserId(userId)
+  + findAll(status[, cinemaId])
+  + updateStatus([Connection,] ...)
+}
+class JdbcUserAppealDAO <<repository>> implements UserAppealDAO
+
+interface OrderDAO <<repository>>
+interface UserDAO <<repository>>
+
+StaffPortalServlet --> StaffService
+StaffApiServlet --> StaffService
+StaffService --> OrderDAO
+StaffService --> AdminService : uỷ quyền GHI\n(redeemTicket, markCounterOrderPaid)
+StaffService ..> "util.ScopeUtil" : isOutOfCinemaScope()\n(giới hạn theo cụm rạp)
+
+ManagerPortalServlet --> AdminService
+ManagerPortalServlet --> "service.PolicyDocumentService" : handleRefundPolicyPost()
+SystemPortalServlet --> AdminService
+SystemPortalServlet --> HoldSweeper : action=runSweeper\n→ sweepOnce()
+AdminDashboardServlet --> AdminService
+
+AdminService --> OrderDAO
+AdminService --> "dao.AdminNotificationDAO"
+AdminService --> "dao.NotificationRecipientDAO"
+AdminService --> "dao.UserNotificationDAO"
+AdminService --> UserDAO
+AdminService --> UserAppealDAO
+AdminService ..> "config.DBConnection" : SQL trực tiếp\n(Film/Cinema/Room/Showtime/\nPromotion/Combo/Report/Audit)
+AdminService ..> "service.LoyaltyService" : reversePointsOnRefund()\nkhi refundOrder()
+
+class HoldSweeper <<service>>
+@enduml

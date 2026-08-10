@@ -1,0 +1,153 @@
+' =============================================================================
+'  CineBook — Activity Diagram: Thanh toán thẻ mô phỏng · Thanh toán quầy ·
+'  Hết hạn giữ ghế & HoldSweeper thu hồi
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 ACT_02_ThanhToan.puml
+' =============================================================================
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ACT 5 — Thanh toán bằng thẻ mô phỏng                                      ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ACT_05_ThanhToanTheGiaDinh
+title Activity — Thanh toán bằng thẻ mô phỏng (online)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Thành viên|
+start
+:xem đơn nháp, nhập mã khuyến mãi (tuỳ chọn),\nchọn "Thanh toán bằng thẻ";
+
+|Hệ thống (OrderServlet → BookingService)|
+:BEGIN TRAN;
+if (Còn hạn giữ ghế?) then ([Hết hạn])
+  :ROLLBACK;
+  |Giao diện (JSP)|
+  :"Đã hết hạn giữ ghế,\nvui lòng đặt lại";
+  stop
+else ([Còn hạn])
+endif
+if (Có mã khuyến mãi?) then ([Có])
+  :resolvePromotion(code, userId, tier);
+  if (Mã hợp lệ?) then ([Không hợp lệ])
+    :bỏ qua giảm giá, giữ giá gốc;
+  else ([Hợp lệ])
+    :tính DiscountAmount;
+  endif
+else ([Không])
+endif
+:PaymentGateway (SimulatedGateway)\n.createPayment(order, "card");
+:cập nhật Orders (OrderStatus=confirmed,\nPaymentStatus=paid),\nShowtimeSeats (Status=booked);
+:LoyaltyService.addPointsOnPayment;
+:COMMIT TRAN;
+:InvoiceService.issueSale(orderId);
+:EmailService.sendTicket (gửi async);
+
+|Thành viên|
+:nhận vé điện tử + mã QR;
+stop
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ACT 6 — Thanh toán tại quầy                                               ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ACT_06_ThanhToanTaiQuay
+title Activity — Thanh toán tại quầy
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Thành viên|
+start
+:chọn "Thanh toán tại quầy";
+
+|Hệ thống (BookingService)|
+:Orders.OrderStatus=confirmed,\nPaymentStatus=pending,\nCounterExpiresAt=now+X phút;
+
+|Thành viên|
+:nhận mã đơn, di chuyển tới quầy vé;
+
+|Nhân viên quầy|
+:nhập/quét mã vé tại /staff/checkin;
+
+|Hệ thống (StaffService)|
+:ScopeUtil.isOutOfCinemaScope(actor, order);
+if (Đúng phạm vi cụm rạp?) then ([Ngoài phạm vi])
+  |Giao diện (JSP)|
+  :"Vé không thuộc rạp bạn phụ trách";
+  stop
+else ([Đúng phạm vi])
+endif
+if (Còn trong CounterExpiresAt?) then ([Đã hết hạn])
+  |Giao diện (JSP)|
+  :"Đơn đã quá hạn thanh toán\n(có thể đã bị HoldSweeper huỷ)";
+  stop
+else ([Còn hạn])
+endif
+
+|Nhân viên quầy|
+:thu tiền mặt, bấm "Xác nhận thu tiền";
+
+|Hệ thống (AdminService)|
+:markCounterOrderPaid(orderId, actor);
+:cập nhật PaymentStatus=paid,\nShowtimeSeats.Status=booked;
+:LoyaltyService.addPointsOnPayment;
+
+|Nhân viên quầy|
+:in/xuất vé cho khách;
+stop
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ACT 7 — Hết hạn giữ ghế & HoldSweeper thu hồi                             ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ACT_07_HetHanGiuGheVaSweeper
+title Activity — Hết hạn giữ ghế & HoldSweeper thu hồi (tiến trình nền)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Tiến trình nền (ScheduledExecutorService)|
+start
+:mỗi 30 giây, gọi HoldSweeper.sweepOnce();
+
+|HoldSweeper|
+if (SystemSettings.sweeper.enabled = true?) then ([false])
+  :bỏ qua vòng này;
+  stop
+else ([true])
+endif
+:SET LOCK_TIMEOUT 5000;
+:releaseExpiredHolds()\n(ShowtimeSeats: held→available\nWHERE HeldUntil < GETDATE());
+:sendCounterReminders()\n(email nhắc đơn quầy sắp hết hạn);
+:cancelExpiredCounterOrders()\n(Orders quá CounterExpiresAt\n→ cancelled, ghế → available,\nhoàn UserVouchers/PromotionUsage nếu có);
+:cancelOrphanDraftOrders()\n(đơn nháp bỏ dở > orphanOrderMinutes\n→ cancelled);
+:cleanupLoginAttempts()\n(xoá bản ghi > 90 ngày);
+:trả về SweepResult\n(released, counterCancelled, draftCancelled);
+stop
+
+note right
+  Dùng WITH (UPDLOCK, ROWLOCK, READPAST)
+  trên mọi UPDATE/DELETE để 2 lượt sweep
+  chạy chồng nhau không giành/huỷ trùng.
+end note
+@enduml

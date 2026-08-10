@@ -1,0 +1,232 @@
+' =============================================================================
+'  CineBook — Activity Diagram: Đăng ký · Đăng nhập · Tìm kiếm · Đặt vé & Giữ ghế
+'  Swimlane: Người dùng | Giao diện (JSP) | Hệ thống (Servlet/Service) | Database
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 ACT_01_KhachHang.puml
+' =============================================================================
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ACT 1 — Đăng ký tài khoản                                                 ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ACT_01_DangKyTaiKhoan
+title Activity — Đăng ký tài khoản
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Người dùng|
+start
+:mở trang /register;
+:nhập email, mật khẩu,\nxác nhận mật khẩu;
+:bấm "Đăng ký";
+
+|Giao diện (JSP)|
+:gửi POST /register (_csrf);
+
+|Hệ thống (AuthServlet)|
+if (CSRF token hợp lệ?) then ([Không hợp lệ])
+  :trả 403;
+  |Giao diện (JSP)|
+  :hiển thị lỗi CSRF;
+  stop
+else ([Hợp lệ])
+endif
+if (PasswordPolicy.validate?) then ([Không đạt])
+  :flash lỗi độ mạnh mật khẩu;
+  |Giao diện (JSP)|
+  :hiển thị lỗi trên form;
+  stop
+else ([Đạt])
+endif
+
+|Database|
+:UserDAO.findByEmail(email);
+|Hệ thống (AuthServlet)|
+if (Email đã tồn tại?) then ([Đã tồn tại])
+  :flash lỗi "Email đã dùng";
+  |Giao diện (JSP)|
+  :hiển thị lỗi;
+  stop
+else ([Chưa tồn tại])
+endif
+:PasswordUtil.hash (BCrypt);
+|Database|
+:UserDAO.create(user);
+|Hệ thống (AuthServlet)|
+:EmailService.createAndSendVerification\n(gửi async);
+:redirect /login + flash\n"Kiểm tra email để xác thực";
+
+|Người dùng|
+:mở email, bấm liên kết xác thực;
+
+|Hệ thống (AuthServlet)|
+:GET /verify-email?token=...;
+|Database|
+:kiểm tra & đánh dấu\nEmail đã xác thực;
+|Hệ thống (AuthServlet)|
+if (Token còn hạn?) then ([Hết hạn])
+  |Giao diện (JSP)|
+  :"Liên kết hết hạn,\nbấm gửi lại xác thực";
+  stop
+else ([Còn hạn])
+  |Giao diện (JSP)|
+  :"Xác thực thành công,\nmời đăng nhập";
+endif
+stop
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ACT 2 — Đăng nhập & xử lý khoá/throttle                                   ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ACT_02_DangNhapThrottle
+title Activity — Đăng nhập & xử lý khoá/throttle
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Người dùng|
+start
+:nhập email/mật khẩu tại /login;
+
+|Hệ thống (AuthServlet)|
+:LoginThrottleService.check(email, ip);
+if (Bị throttle/khoá tạm?) then ([Vượt ngưỡng])
+  |Giao diện (JSP)|
+  :hiển thị "Thử lại sau X phút";
+  stop
+else ([Còn cho phép thử])
+endif
+:UserDAO.findByEmail(email);
+if (Đúng mật khẩu?) then ([Sai])
+  :LoginThrottleService.recordFailure;
+  :applyProgressiveDelay(failures);
+  |Giao diện (JSP)|
+  :"Sai email hoặc mật khẩu";
+  stop
+else ([Đúng])
+endif
+:AccountStateGuard.evaluate(user);
+if (Trạng thái tài khoản?) then ([LOCKED/DELETED])
+  |Giao diện (JSP)|
+  :"Tài khoản đã bị khoá,\ngợi ý gửi kháng cáo /appeal";
+  stop
+else ([OK])
+endif
+:LoginThrottleService.recordSuccess;
+:tạo HttpSession mới\n(chống session fixation);
+:CsrfFilter.rotate + writeCookie;
+:redirect theo vai trò\n(home/admin/staff...);
+
+|Người dùng|
+:vào trang tương ứng vai trò;
+stop
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ACT 3 — Tìm kiếm & xem lịch chiếu                                         ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ACT_03_TimKiemLichChieu
+title Activity — Tìm kiếm phim & xem lịch chiếu
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Người dùng (Guest/Member)|
+start
+:mở /films, nhập từ khoá\nvà/hoặc chọn rạp;
+
+|Hệ thống (FilmServlet)|
+:FilmDAO.searchPublic(keyword, cinemaId,\noffset, limit);
+:FilmAvailabilityPolicy.publicOnly(...)\nlọc COMING/SHOWING/EXPIRING_SOON;
+
+|Người dùng (Guest/Member)|
+:xem danh sách kết quả;
+if (Chọn xem chi tiết 1 phim?) then ([Có])
+  :bấm vào phim;
+  |Hệ thống (FilmServlet)|
+  :FilmDAO.findById(id);
+  :ShowtimeDAO.findByFilmAndCinema(...);
+  |Người dùng (Guest/Member)|
+  :xem mô tả, trailer,\ndanh sách suất chiếu theo rạp/ngày;
+  if (Đã đăng nhập?) then ([Chưa])
+    :"Đăng nhập để đặt vé";
+    stop
+  else ([Đã đăng nhập])
+    :chọn 1 suất chiếu → sang luồng\n"Chọn ghế & tạo hold" (ACT_04);
+  endif
+else ([Không — quay lại danh sách])
+endif
+stop
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ACT 4 — Chọn suất, chọn ghế và tạo hold                                   ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ACT_04_ChonSuatChonGheTaoHold
+title Activity — Chọn suất, chọn ghế và tạo hold
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Thành viên|
+start
+:vào /booking?showtimeId=...;
+
+|Hệ thống (BookingPageServlet)|
+:BookingService.requireBookableShowtime(id);
+if (Suất chiếu còn bán?\n(SaleStatus=ON_SALE, cutoff)) then ([Hết hạn/đã ngừng])
+  |Giao diện (JSP)|
+  :"Suất chiếu không còn khả dụng";
+  stop
+else ([Còn bán])
+endif
+:BookingService.getSeatMap(showtimeId);
+|Thành viên|
+:xem sơ đồ ghế (available/held/booked/maintenance);
+:chọn 1..N ghế + combo bắp nước (tuỳ chọn);
+:bấm "Giữ chỗ";
+
+|Hệ thống (OrderServlet → BookingService)|
+:BEGIN TRAN;
+:ShowtimeSeatDAO.lockSeats\n(WITH UPDLOCK, ROWLOCK);
+if (Tất cả ghế đang available?) then ([Có ghế đã bị giữ/đặt])
+  :ROLLBACK;
+  |Giao diện (JSP)|
+  :"Một số ghế vừa được người khác giữ,\nvui lòng chọn lại";
+  stop
+else ([Tất cả available])
+endif
+:markHeld(seatIds, userId,\nHeldUntil=now+holdMinutes());
+:OrderDAO.insertDraftOrder + insertOrderSeats\n(+ insertOrderCombos nếu có);
+:COMMIT TRAN;
+
+|Thành viên|
+:xem đơn nháp + đồng hồ đếm ngược\n(holdMinutes) → sang thanh toán;
+stop
+@enduml

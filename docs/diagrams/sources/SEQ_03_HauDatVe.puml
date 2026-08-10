@@ -1,0 +1,234 @@
+' =============================================================================
+'  CineBook — Sequence Diagram: Hậu đặt vé (3 luồng)
+'  Check-in QR chống quét lại · Huỷ/Hoàn tiền · Khuyến mãi/Loyalty/Voucher
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 SEQ_03_HauDatVe.puml
+' =============================================================================
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 8 — Check-in bằng QR, chống quét lại (replay)                         ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_08_CheckinQrChongQuetLai
+title Sequence — Check-in vé bằng QR & chống quét lại (redeemTicket)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Nhân viên quầy" as Staff
+participant "staff/checkin.jsp" as View
+participant "StaffPortalServlet" as Servlet
+participant "QrCodeUtil" as Qr
+participant "StaffService" as StaffSvc
+participant "AdminService" as AdminSvc
+database "SQL Server\n(Orders)" as DB
+
+Staff -> View : quét mã QR vé (jsQR.js đọc camera)
+View -> Servlet : POST /staff/checkin?action=redeem\n(ticketCode ký HMAC từ QR)
+activate Servlet
+Servlet -> Qr : verifiedTicketCode(signedPayload)
+activate Qr
+Qr -> Qr : xác minh chữ ký HMAC-SHA256\n(ticket.hmac.secret)
+alt [Chữ ký không hợp lệ / giả mạo]
+  Qr --> Servlet : null
+  Servlet --> View : 400 "Mã vé không hợp lệ"
+  View --> Staff : hiển thị lỗi
+else [Chữ ký hợp lệ]
+  Qr --> Servlet : ticketCode đã xác minh
+  deactivate Qr
+  Servlet -> StaffSvc : checkIn(ticketCode, actor)
+  activate StaffSvc
+  StaffSvc -> StaffSvc : ScopeUtil.isOutOfCinemaScope(actor, order)
+  alt [Ngoài phạm vi cụm rạp]
+    StaffSvc --> Servlet : 403
+    Servlet --> View : "Vé không thuộc rạp bạn phụ trách"
+  else [Đúng phạm vi]
+    StaffSvc -> AdminSvc : redeemTicket(ticketCode, actor)
+    activate AdminSvc
+    AdminSvc -> DB : SELECT Orders WHERE TicketCode=?\nFOR UPDATE (WITH (UPDLOCK))
+    DB --> AdminSvc : Order{CheckinStatus, OrderStatus, PaymentStatus}
+    AdminSvc -> AdminSvc : kiểm tra:\n[Đã soát vé trước đó] → chặn "quét lại"\n[Chưa thanh toán] → chặn\n[Còn hạn & đã thanh toán] → cho phép
+
+    alt [CheckinStatus đã = 'checked_in' (quét lại)]
+      AdminSvc --> StaffSvc : BookingException\n("Vé đã được soát trước đó lúc HH:mm")
+      StaffSvc --> Servlet : lỗi — chống replay
+      Servlet --> View : hiển thị cảnh báo đỏ\n"VÉ ĐÃ SOÁT — NGHI VẤN GIAN LẬN"
+      View --> Staff : từ chối cho vào phòng
+    else [Chưa checked_in & PaymentStatus=paid & còn hạn]
+      AdminSvc -> DB : BEGIN TRAN\nUPDATE Orders SET OrderStatus='redeemed',\nCheckinStatus='checked_in',\nCheckinByStaffId=actor.id, RedeemedAt=GETDATE()\nCOMMIT
+      AdminSvc --> StaffSvc : thành công
+      deactivate AdminSvc
+      StaffSvc --> Servlet : OK
+      deactivate StaffSvc
+      Servlet --> View : 200 — "Soát vé thành công"
+      deactivate Servlet
+      View --> Staff : đèn xanh, cho khách vào phòng chiếu
+    end
+  end
+end
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 9 — Huỷ đơn / Hoàn tiền                                               ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_09_HuyDonHoanTien
+title Sequence — Gửi yêu cầu hoàn tiền & Manager duyệt hoàn tiền
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Thành viên" as U
+actor "Quản lý rạp" as Manager
+participant "booking/ticket-refund-appeal.jsp" as View
+participant "TicketRefundAppealServlet" as Servlet
+participant "RefundAppealPolicy" as Policy
+participant "UserAppealDAO" as AppealDAO
+participant "admin/orders.jsp" as AdminView
+participant "ManagerPortalServlet" as AdminServlet
+participant "AdminService" as AdminSvc
+participant "LoyaltyService" as Loyalty
+database "SQL Server" as DB
+
+U -> View : nhập mã vé, lý do xin hoàn tiền
+View -> Servlet : POST /ticket-refund-appeal\n(ticketCode, reason)
+activate Servlet
+Servlet -> DB : SELECT Orders WHERE TicketCode=? AND UserId=?
+DB --> Servlet : OrderRecord
+Servlet -> Policy : evaluate(order)
+activate Policy
+Policy --> Servlet : Evaluation{ELIGIBLE / NOT_ENDED / EXPIRED / ...}
+deactivate Policy
+
+alt [status != ELIGIBLE]
+  Servlet --> View : flash lỗi theo status\n(vd "Đơn chưa qua giờ chiếu"\nhoặc "Đã quá 24h hạn kháng nghị")
+  View --> U : hiển thị lý do từ chối
+else [ELIGIBLE]
+  Servlet -> AppealDAO : createRefundAppeal(userId, orderId, ticketCode, reason)
+  AppealDAO -> DB : INSERT UserAppeals\n(AppealType='refund', Status='pending')
+  Servlet -> "dao.AdminNotificationDAO" : createNotification\n(loại "RefundAppeal", target=cụm rạp)
+  Servlet --> View : "Yêu cầu đã gửi, chờ rạp duyệt"
+  deactivate Servlet
+  View --> U : hiển thị xác nhận
+
+  ... Manager đăng nhập, xem hàng chờ ...
+
+  Manager -> AdminView : xem danh sách "Đơn kháng cáo hoàn vé"
+  AdminView -> AdminServlet : GET /admin/appeals
+  AdminServlet -> AdminSvc : appealQueue(actor)\n[lọc theo CinemaId của actor]
+  AdminSvc -> DB : SELECT ... WHERE CinemaId=@actorCinemaId\n(ScopeUtil.scopeFilter)
+  DB --> AdminSvc : danh sách appeal trong phạm vi rạp
+  AdminSvc --> AdminServlet : danh sách
+  AdminServlet --> AdminView : hiển thị bảng
+  Manager -> AdminView : chọn đơn, bấm "Duyệt hoàn tiền"
+  AdminView -> AdminServlet : POST /admin/orders?action=approveRefund
+  activate AdminServlet
+  AdminServlet -> AdminSvc : refundOrder(orderId, actor)
+  activate AdminSvc
+  AdminSvc -> AdminSvc : ScopeUtil.assertCinemaScope(actor, order)\n[Ngoài phạm vi] → 403
+  AdminSvc -> DB : BEGIN TRAN\nUPDATE Orders SET OrderStatus='cancelled',\nPaymentStatus='refunded', RefundedBy=actor.id,\nRefundedAt=GETDATE()\nINSERT RefundTransactions (UNIQUE OrderId — tối đa 1 lần)
+  AdminSvc -> Loyalty : reversePointsOnRefund(Connection, userId, orderId, amount)
+  Loyalty -> DB : UPDATE Users SET LoyaltyPoints -=...\nINSERT LoyaltyPointDebtLedger [nếu điểm đã tiêu hết]
+  AdminSvc -> DB : COMMIT TRAN
+  AdminSvc -> "service.InvoiceService" : issueRefundAdjustment(orderId, amount)
+  AdminSvc -> AppealDAO : updateStatus(appealId, 'approved')
+  AdminSvc --> AdminServlet : OK
+  deactivate AdminSvc
+  AdminServlet --> AdminView : "Đã hoàn tiền thành công"
+  deactivate AdminServlet
+  AdminView --> Manager : cập nhật trạng thái đơn
+end
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 10 — Khuyến mãi, Loyalty & Đổi voucher                                ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_10_KhuyenMaiLoyaltyVoucher
+title Sequence — Áp mã khuyến mãi khi đặt vé & Đổi điểm Loyalty lấy Voucher
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Thành viên" as U
+participant "booking/page.jsp" as BookView
+participant "PromotionServlet" as PromoServlet
+participant "member/loyalty.jsp" as LoyaltyView
+participant "LoyaltyServlet" as LoyServlet
+participant "BookingService" as Booking
+participant "LoyaltyService" as Loyalty
+participant "PromotionDAO /\nPromotionUsageDAO" as PromoDAO
+database "SQL Server" as DB
+
+U -> BookView : nhập mã khuyến mãi lúc đặt vé
+BookView -> PromoServlet : GET /promotions/validate?code=...
+activate PromoServlet
+PromoServlet -> Booking : resolvePromotion(code, userId, userTier)
+activate Booking
+Booking -> PromoDAO : findByCode(code)
+PromoDAO -> DB : SELECT ... WHERE Code=?
+DB --> PromoDAO : Promotion / null
+Booking -> PromoDAO : countForUser(promoId, userId)\n(kiểm PerUserLimit)
+
+alt [Không tồn tại / hết hạn / vượt UsageLimit / vượt PerUserLimit / sai TargetTier]
+  Booking --> PromoServlet : không hợp lệ + lý do
+  PromoServlet --> BookView : 200 {valid:false, reason}
+  BookView --> U : hiển thị lý do mã không áp dụng được
+else [Hợp lệ]
+  Booking --> PromoServlet : {valid:true, discountPercent}
+  deactivate Booking
+  PromoServlet --> BookView : 200 {valid:true, discountPercent}
+  deactivate PromoServlet
+  BookView --> U : hiển thị số tiền được giảm
+  note over BookView, DB
+    Mã khuyến mãi chỉ thực sự TRỪ UsageLimit/ghi
+    PromotionUsage khi payOrder() commit thành công
+    (xem SEQ_05) — bước validate ở đây chỉ kiểm tra
+    tính hợp lệ, không khoá suất dùng.
+  end note
+end
+
+...
+
+U -> LoyaltyView : xem điểm thưởng, chọn voucher muốn đổi
+LoyaltyView -> LoyServlet : GET /member/loyalty
+LoyServlet -> Loyalty : listRedeemablePromotionsForUser(userId)
+Loyalty -> DB : SELECT Promotions WHERE VoucherType='LOYALTY'\nAND PointsRequired <= @userPoints
+DB --> Loyalty : danh sách promotion đổi được
+Loyalty --> LoyServlet : danh sách
+LoyServlet --> LoyaltyView : hiển thị
+
+U -> LoyaltyView : bấm "Đổi điểm lấy voucher"
+LoyaltyView -> LoyServlet : POST /member/loyalty?action=redeem\n(promotionId)
+activate LoyServlet
+LoyServlet -> Loyalty : redeemVoucherWithPoints(userId, promotionId, redemptionKey)
+activate Loyalty
+Loyalty -> DB : BEGIN TRAN\nSELECT Users WITH (UPDLOCK, ROWLOCK)\nWHERE Id=@userId
+DB --> Loyalty : LoyaltyPoints hiện tại
+
+alt [Không đủ điểm]
+  Loyalty -> DB : ROLLBACK
+  Loyalty --> LoyServlet : lỗi "Không đủ điểm"
+  LoyServlet --> LoyaltyView : flash lỗi
+else [Đủ điểm]
+  Loyalty -> DB : UPDATE Users SET LoyaltyPoints -= PointsRequired\nINSERT PointTransactions (Type='REDEEM')\nINSERT UserVouchers (Code sinh ngẫu nhiên, IsUsed=0)\nCOMMIT
+  Loyalty --> LoyServlet : UserVoucher{code}
+  deactivate Loyalty
+  LoyServlet --> LoyaltyView : "Đổi voucher thành công: <code>"
+  deactivate LoyServlet
+  LoyaltyView --> U : hiển thị mã voucher mới
+end
+@enduml

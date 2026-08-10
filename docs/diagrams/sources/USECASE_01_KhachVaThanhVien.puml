@@ -1,0 +1,70 @@
+' =============================================================================
+'  CineBook — Use Case chi tiết: Dịch vụ Khách hàng & Đặt vé (Guest & Member)
+'  Transcribe 1-1 từ usecase/usecase_khach_va_thanh_vien.png (ảnh gốc đã duyệt,
+'  không có .puml nguồn trước đó). Không thêm/bớt use case so với ảnh gốc.
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 USECASE_01_KhachVaThanhVien.puml
+' =============================================================================
+@startuml USECASE_01_KhachVaThanhVien
+title HỆ THỐNG CINEBOOK — DỊCH VỤ KHÁCH HÀNG & ĐẶT VÉ\n(Guest & Member)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+left to right direction
+
+actor "Khách vãng lai\n(guest)" as Guest
+actor "Thành viên\n(member)" as Member
+
+rectangle "HỆ THỐNG CINEBOOK — DỊCH VỤ KHÁCH HÀNG & ĐẶT VÉ" {
+  usecase "Đăng nhập" as UC_Login
+
+  usecase "Tra cứu Phim & Lịch chiếu" as UC_SearchFilm
+  usecase "Xem danh sách Rạp theo TP" as UC_ListCinema
+  usecase "Xem chi tiết Phim & Trailer" as UC_FilmDetail
+  usecase "Đăng ký Tài khoản mới" as UC_Register
+  usecase "Quên & Đặt lại mật khẩu" as UC_ForgotPwd
+
+  usecase "Đặt vé phim & Chọn ghế/Combo" as UC_Book
+  usecase "Thanh toán trực tuyến\n(VNPay/Thẻ)" as UC_PayOnline
+  usecase "Hủy đơn giữ chỗ chưa trả" as UC_CancelHold
+  usecase "Xem Mã QR Vé & Tải Hóa đơn PDF" as UC_QrInvoice
+  usecase "Xác thực Email qua liên kết" as UC_VerifyEmail
+  usecase "Tích điểm thành viên & Đổi Voucher" as UC_Loyalty
+  usecase "Đánh giá & Viết bình luận phim" as UC_Comment
+  usecase "Xem Khuyến mãi & Chính sách" as UC_ViewPromo
+  usecase "Gửi yêu cầu Hoàn tiền vé lỡ suất" as UC_Refund
+  usecase "Gửi đơn Kháng cáo mở khóa TK" as UC_Appeal
+  usecase "Xuất / Xóa dữ liệu cá nhân" as UC_PersonalData
+}
+
+Guest -- UC_SearchFilm
+Guest -- UC_ListCinema
+Guest -- UC_FilmDetail
+Guest -- UC_Register
+Guest -- UC_ForgotPwd
+
+Member -- UC_Book
+Member -- UC_PayOnline
+Member -- UC_CancelHold
+Member -- UC_QrInvoice
+Member -- UC_VerifyEmail
+Member -- UC_Loyalty
+Member -- UC_Comment
+Member -- UC_ViewPromo
+Member -- UC_Refund
+Member -- UC_Appeal
+Member -- UC_PersonalData
+
+UC_Book ..> UC_Login : <<include>>
+UC_PayOnline ..> UC_Login : <<include>>
+UC_CancelHold ..> UC_Login : <<include>>
+UC_QrInvoice ..> UC_Login : <<include>>
+UC_VerifyEmail ..> UC_Login : <<include>>
+UC_Loyalty ..> UC_Login : <<include>>
+UC_Comment ..> UC_Login : <<include>>
+UC_ViewPromo ..> UC_Login : <<include>>
+UC_Refund ..> UC_Login : <<include>>
+UC_Appeal ..> UC_Login : <<include>>
+UC_PersonalData ..> UC_Login : <<include>>
+
+@enduml

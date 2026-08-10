@@ -1,0 +1,287 @@
+' =============================================================================
+'  CineBook — Sequence Diagram: Booking & Payment (4 luồng)
+'  Mức trừu tượng: Actor → View (JSP) → Servlet → Service → DAO → Database →
+'  External Service (SimulatedGateway/EmailService). Nguồn: báo cáo khảo sát
+'  Servlet + Service/DAO (BookingService, HoldSweeper).
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 SEQ_02_Booking.puml
+' =============================================================================
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 4 — Đặt vé & giữ ghế đồng thời (concurrency)                          ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_04_DatVeGiuGheDongThoi
+title Sequence — Đặt vé & Giữ ghế đồng thời (2 thành viên chọn cùng 1 ghế)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Thành viên A" as UA
+actor "Thành viên B" as UB
+participant "booking/page.jsp" as View
+participant "OrderServlet" as Servlet
+participant "BookingService" as Svc
+participant "ShowtimeSeatDAO" as SeatDAO
+database "SQL Server\n(ShowtimeSeats)" as DB
+
+UA -> View : chọn ghế A1, bấm "Giữ chỗ"
+View -> Servlet : POST /orders\n(showtimeId, seatIds=[A1])
+activate Servlet
+Servlet -> Svc : createDraftOrder(userIdA, showtimeId, [A1])
+activate Svc
+Svc -> SeatDAO : lockSeats(showtimeId, [A1])\n(BEGIN TRAN, SELECT ... WITH (UPDLOCK, ROWLOCK))
+activate SeatDAO
+SeatDAO -> DB : khoá dòng ShowtimeSeats\nWHERE SeatId IN (A1) AND ShowtimeId=?
+
+UB -> View : chọn cùng ghế A1, bấm "Giữ chỗ"\n[gần như đồng thời]
+View -> Servlet : POST /orders\n(showtimeId, seatIds=[A1])
+Servlet -> Svc : createDraftOrder(userIdB, showtimeId, [A1])
+activate Svc
+Svc -> SeatDAO : lockSeats(showtimeId, [A1])
+activate SeatDAO
+note over SeatDAO, DB
+  Transaction B phải CHỜ vì transaction A
+  đang giữ row-lock trên đúng dòng ShowtimeSeats(A1)
+end note
+
+SeatDAO -> DB : kiểm tra Status='available'\n[Còn hạn/available] → markHeld(A1, userIdA, HeldUntil=GETDATE()+holdMinutes())
+DB --> SeatDAO : UPDATE 1 dòng OK
+SeatDAO --> Svc : giữ ghế thành công
+deactivate SeatDAO
+Svc -> DB : COMMIT TRAN (A)
+Svc --> Servlet : OrderRecord (draft, ghế A1 held bởi A)
+deactivate Svc
+Servlet --> View : 201 Created — giữ chỗ thành công
+View --> UA : hiển thị đồng hồ đếm ngược\nholdMinutes()
+
+... transaction A COMMIT, row-lock giải phóng ...
+
+SeatDAO -> DB : kiểm tra Status='available'\n[Hết hạn/không available — Status hiện='held']
+DB --> SeatDAO : Status='held', HeldByUserId=A (khác userIdB)
+SeatDAO --> Svc : xung đột — ghế đã bị giữ
+deactivate SeatDAO
+Svc -> DB : ROLLBACK TRAN (B)
+Svc --> Servlet : BookingException("Ghế A1 đã được giữ bởi người khác")
+deactivate Svc
+Servlet --> View : 409 Conflict
+deactivate Servlet
+View --> UB : "Ghế đã được người khác giữ,\nvui lòng chọn ghế khác"
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 5 — Thanh toán bằng thẻ mô phỏng (SimulatedGateway)                   ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_05_ThanhToanTheGiaDinh
+title Sequence — Thanh toán bằng thẻ mô phỏng (online)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Thành viên" as U
+participant "booking/page.jsp" as View
+participant "OrderServlet" as Servlet
+participant "BookingService" as Svc
+participant "PromotionDAO" as PromoDAO
+participant "PaymentGateway\n(SimulatedGateway)" as Gateway
+participant "LoyaltyService" as Loyalty
+participant "InvoiceService" as Invoice
+participant "EmailService" as Email
+database "SQL Server\n(Orders, ShowtimeSeats)" as DB
+
+U -> View : chọn combo, nhập mã khuyến mãi (tuỳ chọn),\nbấm "Thanh toán"
+View -> Servlet : POST /orders/{id}/pay\n(comboSelections, promotionCode, method=card, _csrf)
+activate Servlet
+Servlet -> Svc : payOrder(userId, orderId, comboSel, promoCode, "card", idemKey)
+activate Svc
+Svc -> DB : BEGIN TRAN
+Svc -> Svc : kiểm tra order thuộc userId,\ncòn hạn giữ ghế [Còn hạn] / [Hết hạn]
+
+alt [Hết hạn giữ ghế]
+  Svc -> DB : ROLLBACK
+  Svc --> Servlet : BookingException("Đã hết hạn giữ ghế")
+  Servlet --> View : 409 Conflict
+  View --> U : "Phiên giữ ghế đã hết hạn,\nvui lòng đặt lại"
+else [Còn hạn]
+  opt [Có mã khuyến mãi]
+    Svc -> PromoDAO : findByCode(Connection, promoCode)
+    PromoDAO -> DB : SELECT ... WHERE Code=?
+    DB --> PromoDAO : Promotion / null
+    Svc -> Svc : resolvePromotion(...)\n[Hợp lệ] tính DiscountAmount\n[Không hợp lệ] bỏ qua, giữ giá gốc
+  end
+  Svc -> Gateway : createPayment(order, "card")
+  activate Gateway
+  Gateway --> Svc : PaymentResult.success(transactionId="SIM-...")
+  deactivate Gateway
+
+  Svc -> DB : UPDATE Orders SET OrderStatus='confirmed',\nPaymentStatus='paid', TransactionId=...\nUPDATE ShowtimeSeats SET Status='booked'\nWHERE ShowtimeId=... AND SeatId IN (...)
+  Svc -> Loyalty : addPointsOnPayment(Connection, userId, totalAmount, orderId)
+  activate Loyalty
+  Loyalty -> DB : UPDATE Users SET LoyaltyPoints += ...\nINSERT PointTransactions
+  deactivate Loyalty
+  Svc -> DB : COMMIT TRAN
+  Svc -> Invoice : issueSale(orderId)
+  activate Invoice
+  Invoice -> DB : INSERT Invoices (InvoiceType='sale')
+  deactivate Invoice
+  Svc -> Email : sendTicket(order)
+  activate Email
+  Email -> Email : gửi async — vé + mã QR
+  deactivate Email
+  Svc --> Servlet : OrderRecord (confirmed, paid)
+  deactivate Svc
+  Servlet --> View : 200 OK
+  deactivate Servlet
+  View --> U : hiển thị vé điện tử + mã QR
+end
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 6 — Thanh toán tại quầy (counter)                                     ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_06_ThanhToanTaiQuay
+title Sequence — Đặt vé thanh toán tại quầy & Nhân viên thu tiền
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Thành viên" as U
+actor "Nhân viên quầy" as Staff
+participant "booking/page.jsp" as View
+participant "OrderServlet" as Servlet
+participant "BookingService" as Svc
+participant "staff/checkin.jsp" as StaffView
+participant "StaffPortalServlet" as StaffServlet
+participant "StaffService" as StaffSvc
+participant "AdminService" as AdminSvc
+database "SQL Server\n(Orders)" as DB
+
+U -> View : chọn "Thanh toán tại quầy", bấm xác nhận
+View -> Servlet : POST /orders/{id}/pay\n(method=counter)
+activate Servlet
+Servlet -> Svc : payOrder(userId, orderId, ..., "counter", idemKey)
+activate Svc
+Svc -> DB : UPDATE Orders SET OrderStatus='confirmed',\nPaymentStatus='pending',\nCounterExpiresAt=GETDATE()+X phút
+Svc --> Servlet : OrderRecord (confirmed, pending, counter)
+deactivate Svc
+Servlet --> View : 200 OK
+deactivate Servlet
+View --> U : hiển thị mã đơn + hạn tới quầy thanh toán
+
+... khách tới quầy, đưa mã đơn/vé ...
+
+Staff -> StaffView : nhập mã vé / quét QR
+StaffView -> StaffServlet : GET /staff/checkin?ticketCode=...
+activate StaffServlet
+StaffServlet -> StaffSvc : lookupTicket(ticketCode, actor)
+activate StaffSvc
+StaffSvc -> StaffSvc : ScopeUtil.isOutOfCinemaScope(actor, order)\n[Ngoài phạm vi rạp] / [Đúng phạm vi rạp]
+alt [Ngoài phạm vi cụm rạp của nhân viên]
+  StaffSvc --> StaffServlet : 403 — không thuộc rạp phụ trách
+  StaffServlet --> StaffView : lỗi phạm vi
+else [Đúng phạm vi]
+  StaffSvc -> DB : SELECT Orders WHERE TicketCode=?
+  DB --> StaffSvc : OrderRecord (PaymentStatus=pending, method=counter)
+  StaffSvc --> StaffServlet : TicketLookup
+  deactivate StaffSvc
+  StaffServlet --> StaffView : hiển thị chi tiết đơn, nút "Thu tiền"
+  Staff -> StaffView : bấm "Thu tiền mặt"
+  StaffView -> StaffServlet : POST /staff/checkin?action=markPaid
+  StaffServlet -> StaffSvc : collectPayment(orderId, actor)
+  activate StaffSvc
+  StaffSvc -> AdminSvc : markCounterOrderPaid(orderId, actor)
+  activate AdminSvc
+  AdminSvc -> DB : BEGIN TRAN\nUPDATE Orders SET PaymentStatus='paid'\nUPDATE ShowtimeSeats SET Status='booked'\nCOMMIT
+  AdminSvc -> "service.LoyaltyService" : addPointsOnPayment(...)
+  AdminSvc --> StaffSvc : OK
+  deactivate AdminSvc
+  StaffSvc --> StaffServlet : xác nhận thu tiền thành công
+  deactivate StaffSvc
+  StaffServlet --> StaffView : cập nhật trạng thái "Đã thanh toán"
+  deactivate StaffServlet
+  StaffView --> Staff : in/xuất vé cho khách
+end
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 7 — Hold hết hạn & tiến trình HoldSweeper thu hồi                     ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_07_HoldHetHan
+title Sequence — Ghế giữ chỗ hết hạn & HoldSweeper thu hồi (tiến trình nền)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+participant "ScheduledExecutorService\n(daemon: cinebook-hold-sweeper)" as Scheduler
+participant "HoldSweeper" as Sweeper
+participant "ShowtimeSeatDAO" as SeatDAO
+participant "OrderDAO" as OrderDAO
+participant "EmailService" as Email
+participant "LoginAttemptDAO" as LoginDAO
+database "SQL Server" as DB
+
+Scheduler -> Sweeper : sweepOnce()\n(fixedDelay 30s, initialDelay 20s)
+activate Sweeper
+Sweeper -> DB : SET LOCK_TIMEOUT 5000
+
+Sweeper -> SeatDAO : releaseExpiredHolds()
+activate SeatDAO
+SeatDAO -> DB : UPDATE ShowtimeSeats\nSET Status='available', HeldByUserId=NULL\nWHERE Status='held' AND HeldUntil < GETDATE()\nWITH (UPDLOCK, ROWLOCK, READPAST)
+DB --> SeatDAO : N dòng đã cập nhật
+SeatDAO --> Sweeper : N ghế thu hồi
+deactivate SeatDAO
+
+Sweeper -> OrderDAO : (đọc đơn quầy sắp hết hạn)
+Sweeper -> Email : sendCounterReminders()\n[cho đơn counter sắp hết hạn]
+activate Email
+Email -> Email : gửi async
+deactivate Email
+
+Sweeper -> OrderDAO : cancelExpiredCounterOrders()
+activate OrderDAO
+OrderDAO -> DB : BEGIN TRAN\nUPDATE Orders SET OrderStatus='cancelled',\nPaymentStatus='cancelled'\nWHERE PaymentMethod='counter' AND CounterExpiresAt<GETDATE()\nUPDATE ShowtimeSeats SET Status='available'\n(hoàn UserVouchers/PromotionUsage nếu có)\nCOMMIT
+OrderDAO --> Sweeper : M đơn đã huỷ
+deactivate OrderDAO
+
+Sweeper -> OrderDAO : cancelOrphanDraftOrders()\n[đơn nháp bỏ dở > orphanOrderMinutes]
+activate OrderDAO
+OrderDAO -> DB : UPDATE Orders SET OrderStatus='cancelled'\nWHERE OrderStatus IN ('created','pending')\nAND CreatedAt < GETDATE()-orphanMinutes
+OrderDAO --> Sweeper : K đơn đã huỷ
+deactivate OrderDAO
+
+Sweeper -> LoginDAO : cleanupLoginAttempts()\n[bản ghi > 90 ngày]
+activate LoginDAO
+LoginDAO -> DB : DELETE FROM LoginAttempts\nWHERE CreatedAt < GETDATE()-90
+deactivate LoginDAO
+
+Sweeper --> Scheduler : SweepResult{released=N, counterCancelled=M,\ndraftCancelled=K}
+deactivate Sweeper
+
+note over Sweeper, DB
+  Toàn bộ sweepOnce() bật/tắt qua SystemSettings.sweeper.enabled
+  (đọc lại mỗi vòng, không cần restart Tomcat). Dùng WITH
+  (UPDLOCK, ROWLOCK, READPAST) để 2 lượt sweep song song không
+  giành/huỷ trùng nhau.
+end note
+@enduml

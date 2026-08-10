@@ -1,0 +1,715 @@
+' =============================================================================
+'  CineBook — ERD (Entity Relationship Diagram) đầy đủ CineBookDB — bản cập nhật
+'  Nguồn gốc: back-up/back-up/ERD_CINEBOOK.puml (dựng từ database/schema.sql +
+'  toàn bộ script migration alter_*, migration_*, fix00–fix33, đọc theo đúng thứ
+'  tự trong scripts/init-test-db.ps1). Bản này bổ sung DELTA đã kiểm chứng từ
+'  fix34_admin_domain_integrity.sql và fix35_film_showtime_lifecycle.sql (5 script
+'  fix36–fix38 tiếp theo chỉ SIẾT ràng buộc dữ liệu UserAppeals/SystemSettings,
+'  KHÔNG thêm bảng/cột mới — đã kiểm tra, không có delta cấu trúc).
+'
+'  Khảo sát thực tế: quét "CREATE TABLE" trên toàn bộ 61 file trong database/ ra
+'  đúng 38 bảng, khớp 1-1 với danh sách entity bên dưới — không thiếu, không thừa.
+'
+'  DELTA fix34 (đã xác minh trong file, không suy đoán):
+'   · Cinemas.CinemaType NVARCHAR(20) NOT NULL DEFAULT 'STANDARD'
+'       CHECK (CinemaType IN ('STANDARD','VIP'))
+'   · Rooms.RoomType NVARCHAR(20) NOT NULL DEFAULT 'STANDARD'
+'       CHECK (RoomType IN ('STANDARD','VIP'))
+'   · Rooms.Status: đã tồn tại từ alter_rooms_status.sql (không đổi ở fix34,
+'       fix34 chỉ thêm CHECK (Status IN ('active','inactive')) nếu thiếu)
+'
+'  DELTA fix35 (đã xác minh trong file, không suy đoán):
+'   · Films.DeletedAt DATETIME2(7) NULL
+'   · Films.DeletedByUserId INT NULL  →  FK_Films_DeletedByUser → Users(Id)  [MỚI]
+'   · Films.DeletionMode NVARCHAR(30) NULL  CHECK (PURGE_COMMENTS/PRESERVE_COMMENTS
+'       khi DeletedAt NOT NULL)
+'   · Showtimes.SaleStatus NVARCHAR(20) NOT NULL DEFAULT 'ON_SALE'
+'       CHECK (ON_SALE/SUSPENDED/DELETED)
+'   · Showtimes.DeleteRequestedAt DATETIME2(7) NULL
+'   · Showtimes.DeleteNotBefore DATETIME2(7) NULL  (hàng rào xoá 2 pha)
+'   · Showtimes.DeleteRequestedByUserId INT NULL  →
+'       FK_Showtimes_DeleteRequestedByUser → Users(Id)  [MỚI]
+'
+'  QUY ƯỚC:
+'   · <<PK>> = khoá chính, <<FK>> = khoá ngoại có ràng buộc FOREIGN KEY thật
+'     trong DB. <<FK*>> = liên kết nghiệp vụ nhưng KHÔNG có FOREIGN KEY constraint
+'     thực thi (tham chiếu mềm cố ý, ví dụ PointTransactions.OrderId) — ghi rõ
+'     để không đọc nhầm là ràng buộc cứng.
+'   · OrderSeats, OrderComboFoods, FilmCategories, CinemaFilms dùng KHOÁ KÉP
+'     (composite PK), KHÔNG có cột Id riêng — đúng theo schema.sql thật.
+'   · Cột được đánh dấu [fix34]/[fix35] là cột mới so với bản ERD gốc (fix33).
+'
+'  Render: java -jar tools/plantuml.jar -tsvg -charset UTF-8 ERD_02_CINEBOOK_MODULE.puml
+'          java -jar tools/plantuml.jar -tpng -charset UTF-8 ERD_02_CINEBOOK_MODULE.puml
+' =============================================================================
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ERD 1 — LÕI: NGƯỜI DÙNG · RẠP · PHIM · SUẤT CHIẾU · GHẾ (đã vá fix34/fix35) ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ERD_01_LoiRapPhimSuatChieu
+title ERD CineBookDB (1/4) — Người dùng · Rạp · Phim · Suất chiếu · Ghế\n<size:11>(cập nhật delta fix34 + fix35 — xem ghi chú đầu file)</size>
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+
+entity "Cities" as Cities {
+  * Id : INT <<PK>>
+  --
+  Name : NVARCHAR(100)
+}
+
+entity "Cinemas" as Cinemas {
+  * Id : INT <<PK>>
+  --
+  CityId : INT <<FK>>
+  Name : NVARCHAR(150)
+  Address : NVARCHAR(255)
+  Status : NVARCHAR(20) = 'active'
+  BannerUrl : NVARCHAR(500)
+  CinemaType : NVARCHAR(20) = 'STANDARD' <color:blue>[fix34]</color>
+  ' CHECK CinemaType IN ('STANDARD','VIP')
+}
+
+entity "Users" as Users {
+  * Id : INT <<PK>>
+  --
+  Email : NVARCHAR(100) <<UQ>>
+  PasswordHash : NVARCHAR(255)
+  Role : NVARCHAR(20) = 'member'
+  CinemaId : INT <<FK>>
+  IsLocked : BIT
+  LoyaltyPoints : INT
+  MembershipTier : NVARCHAR(20) = 'BRONZE'
+  LoyaltyPointDebt : INT
+  Deleted : BIT
+}
+
+entity "Rooms" as Rooms {
+  * Id : INT <<PK>>
+  --
+  CinemaId : INT <<FK>>
+  Name : NVARCHAR(100)
+  Status : NVARCHAR(20) = 'active' <color:blue>[fix40]</color>
+  RoomType : NVARCHAR(20) = 'STANDARD' <color:blue>[fix34]</color>
+  ' CHECK RoomType IN ('STANDARD','VIP')
+  ' CHECK Status IN ('active','inactive','deleted') [fix40]
+}
+
+entity "Seats" as Seats {
+  * Id : INT <<PK>>
+  --
+  RoomId : INT <<FK>>
+  RowLabel : NVARCHAR(10)
+  SeatNumber : INT
+  SeatType : NVARCHAR(20)
+  SeatKey : NVARCHAR(20)
+  IsActive : BIT
+  PriceSurcharge : DECIMAL(19,2)
+  ' UNIQUE lọc (RoomId, SeatKey) WHERE IsActive=1
+}
+
+entity "Films" as Films {
+  * Id : INT <<PK>>
+  --
+  Title : NVARCHAR(255)
+  ReleaseDate : DATE
+  EndDate : DATE
+  Status : NVARCHAR(20) = 'showing'
+  Format : NVARCHAR(50)
+  DeletedAt : DATETIME2(7) <color:blue>[fix35]</color>
+  DeletedByUserId : INT <<FK>> <color:blue>[fix35]</color>
+  DeletionMode : NVARCHAR(30) <color:blue>[fix35]</color>
+  ' CHECK: DeletedAt+DeletionMode cùng NULL hoặc cùng có giá trị
+  ' DeletionMode IN ('PURGE_COMMENTS','PRESERVE_COMMENTS')
+}
+
+entity "Categories" as Categories {
+  * Id : INT <<PK>>
+  --
+  Title : NVARCHAR(100)
+}
+
+entity "FilmCategories" as FilmCategories {
+  * FilmId : INT <<PK,FK>>
+  * CategoryId : INT <<PK,FK>>
+}
+
+entity "CinemaFilms" as CinemaFilms {
+  * CinemaId : INT <<PK,FK>>
+  * FilmId : INT <<PK,FK>>
+}
+
+entity "Showtimes" as Showtimes {
+  * Id : INT <<PK>>
+  --
+  FilmId : INT <<FK>>
+  CinemaId : INT <<FK>>
+  RoomId : INT <<FK>>
+  StartTime : DATETIME
+  EndTime : DATETIME
+  BasePrice : DECIMAL(19,2)
+  Format : NVARCHAR(50) = '2D'
+  SaleStatus : NVARCHAR(20) = 'ON_SALE' <color:blue>[fix35]</color>
+  DeleteRequestedAt : DATETIME2(7) <color:blue>[fix35]</color>
+  DeleteNotBefore : DATETIME2(7) <color:blue>[fix35]</color>
+  DeleteRequestedByUserId : INT <<FK>> <color:blue>[fix35]</color>
+  ' CHECK SaleStatus IN ('ON_SALE','SUSPENDED','DELETED');
+  ' xoá 2 pha: SUSPENDED/DELETED bắt buộc có DeleteRequestedAt+DeleteNotBefore
+}
+
+entity "ShowtimeSeats" as ShowtimeSeats {
+  * Id : INT <<PK>>
+  --
+  ShowtimeId : INT <<FK>>
+  SeatId : INT <<FK>>
+  Status : NVARCHAR(20) = 'available'
+  HeldByUserId : INT <<FK>>
+  HeldUntil : DATETIME
+  ClaimedByOrderId : INT <<FK>>
+  ' CHECK Status IN ('available','held','booked','maintenance') [alter_seats_add_maintenance]
+  ' UNIQUE (ShowtimeId, SeatId)
+}
+
+Cities ||--o{ Cinemas : "CityId → Id"
+Cinemas ||--o{ Users : "CinemaId → Id (staff/manager)"
+Cinemas ||--o{ Rooms : "CinemaId → Id"
+Rooms ||--o{ Seats : "RoomId → Id"
+Films ||--o{ FilmCategories : "FilmId → Id"
+Categories ||--o{ FilmCategories : "CategoryId → Id"
+Cinemas ||--o{ CinemaFilms : "CinemaId → Id"
+Films ||--o{ CinemaFilms : "FilmId → Id"
+Films ||--o{ Showtimes : "FilmId → Id"
+Cinemas ||--o{ Showtimes : "CinemaId → Id"
+Rooms ||--o{ Showtimes : "RoomId → Id"
+Showtimes ||--o{ ShowtimeSeats : "ShowtimeId → Id"
+Seats ||--o{ ShowtimeSeats : "SeatId → Id"
+Users ||--o{ ShowtimeSeats : "HeldByUserId → Id"
+Users |o..o{ Films : "DeletedByUserId → Id"
+Users |o..o{ Showtimes : "DeleteRequestedByUserId → Id"
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ERD 5 — QUẢN TRỊ ĐA RẠP · REQUEST PHÊ DUYỆT · NỘI DUNG THEO RẠP          ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ERD_05_QuanTriDaRap
+title ERD CineBookDB (5/5) — Quản trị đa rạp và phê duyệt [fix43–fix46]
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+
+entity "Users" as Users { * Id : INT <<PK>> }
+entity "Cinemas" as Cinemas { * Id : INT <<PK>> }
+entity "Films" as Films { * Id : INT <<PK>> }
+entity "Categories" as Categories { * Id : INT <<PK>> }
+
+entity "CinemaFilms" as CinemaFilms {
+  * CinemaId : INT <<PK,FK>>
+  * FilmId : INT <<PK,FK>>
+  --
+  Status : NVARCHAR(20)
+  AssignedByUserId : INT <<FK>>
+}
+
+entity "Showtimes" as Showtimes {
+  * Id : INT <<PK>>
+  --
+  CinemaId : INT <<FK>>
+  FilmId : INT <<FK>>
+  ' FK ghép (CinemaId, FilmId) → CinemaFilms
+}
+
+entity "ApprovalRequests" as ApprovalRequests {
+  * Id : INT <<PK>>
+  --
+  CinemaId : INT <<FK>>
+  RequestedByUserId : INT <<FK>>
+  ReviewedByUserId : INT <<FK>>
+  RequestType : NVARCHAR(30)
+  Status : NVARCHAR(20)
+  RequestKey : NVARCHAR(200)
+  RowVersion : ROWVERSION
+}
+
+entity "FilmRequestDetails" as FilmRequestDetails {
+  * RequestId : INT <<PK,FK>>
+  --
+  ExistingFilmId : INT <<FK>>
+  Title : NVARCHAR(255)
+  SourceFilmUpdatedAt : DATETIME2
+}
+
+entity "FilmRequestCategories" as FilmRequestCategories {
+  * RequestId : INT <<PK,FK>>
+  * CategoryId : INT <<PK,FK>>
+}
+
+entity "RoomRequestDetails" as RoomRequestDetails {
+  * RequestId : INT <<PK,FK>>
+  --
+  RoomName : NVARCHAR(50)
+  RoomType : NVARCHAR(20)
+  LayoutRows : INT
+  SeatsPerRow : INT
+}
+
+entity "RoomRequestSeats" as RoomRequestSeats {
+  * RequestId : INT <<PK,FK>>
+  * SeatKey : NVARCHAR(20) <<PK>>
+  --
+  RowLabel : NVARCHAR(5)
+  SeatNumber : INT
+  SeatType : NVARCHAR(20)
+}
+
+entity "CinemaContents" as CinemaContents {
+  * CinemaId : INT <<PK,FK>>
+  * ContentKey : NVARCHAR(80) <<PK>>
+  --
+  UpdatedByUserId : INT <<FK>>
+  ContentJson : NVARCHAR(MAX)
+}
+
+entity "AdminNotifications" as AdminNotifications {
+  * Id : INT <<PK>>
+  --
+  CinemaId : INT <<FK>>
+  CreatedByUserId : INT <<FK>>
+  ApprovalRequestId : INT <<FK>>
+  EventType : NVARCHAR(50)
+}
+
+entity "Promotions" as Promotions {
+  * Id : INT <<PK>>
+  --
+  CreatedByUserId : INT <<FK>>
+}
+
+entity "UserAppeals" as UserAppeals {
+  * Id : INT <<PK>>
+  --
+  CinemaId : INT <<FK>>
+}
+
+entity "ComboFoods" as ComboFoods {
+  * Id : INT <<PK>>
+  --
+  CinemaId : INT <<FK>>
+  LegacySourceComboId : INT <<FK>>
+}
+
+Users ||--o{ CinemaFilms : "AssignedByUserId → Id"
+CinemaFilms ||--o{ Showtimes : "(CinemaId, FilmId) → active catalogue"
+Cinemas ||--o{ ApprovalRequests : "CinemaId → Id"
+Users ||--o{ ApprovalRequests : "RequestedBy/ReviewedBy → Id"
+ApprovalRequests ||--o| FilmRequestDetails : "RequestId → Id"
+Films |o..o{ FilmRequestDetails : "ExistingFilmId → Id"
+ApprovalRequests ||--o{ FilmRequestCategories : "RequestId → Id"
+Categories ||--o{ FilmRequestCategories : "CategoryId → Id"
+ApprovalRequests ||--o| RoomRequestDetails : "RequestId → Id"
+ApprovalRequests ||--o{ RoomRequestSeats : "RequestId → Id"
+Cinemas ||--o{ CinemaContents : "CinemaId → Id"
+Users ||--o{ CinemaContents : "UpdatedByUserId → Id"
+Cinemas |o..o{ AdminNotifications : "CinemaId → Id"
+ApprovalRequests |o..o{ AdminNotifications : "ApprovalRequestId → Id"
+Users ||--o{ Promotions : "CreatedByUserId → Id"
+Cinemas |o..o{ UserAppeals : "CinemaId → Id"
+ComboFoods |o..o{ ComboFoods : "LegacySourceComboId → Id"
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ERD 2 — ĐẶT VÉ: ĐƠN HÀNG · GHẾ ĐẶT · COMBO · HOÁ ĐƠN                      ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ERD_02_DonHangComboHoaDon
+title ERD CineBookDB (2/4) — Đơn hàng · Ghế đặt · Combo · Hoá đơn
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+
+entity "Users" as Users {
+  * Id : INT <<PK>>
+}
+
+entity "Showtimes" as Showtimes {
+  * Id : INT <<PK>>
+}
+
+entity "ShowtimeSeats" as ShowtimeSeats {
+  * Id : INT <<PK>>
+}
+
+entity "Cinemas" as Cinemas {
+  * Id : INT <<PK>>
+}
+
+entity "Promotions" as Promotions {
+  * Id : INT <<PK>>
+}
+
+entity "Orders" as Orders {
+  * Id : INT <<PK>>
+  --
+  UserId : INT <<FK>>
+  ShowtimeId : INT <<FK>>
+  PromotionId : INT <<FK>>
+  TicketCode : NVARCHAR(32) <<UQ>>
+  PaymentMethod : NVARCHAR(50)
+  PaymentStatus : NVARCHAR(20) = 'pending'
+  OrderStatus : NVARCHAR(20) = 'pending'
+  IdempotencyKey : NVARCHAR(100) <<UQ>>
+  CounterExpiresAt : DATETIME
+  CheckinStatus : NVARCHAR(30) = 'not_checked_in'
+  CheckinByStaffId : INT <<FK>>
+  RefundedBy : INT <<FK*>>
+  RefundRejectedBy : INT <<FK*>>
+  TotalAmount : DECIMAL(19,2)
+  IsUserHidden : BIT = 0 <color:blue>[fix39]</color>
+  StateVersion : ROWVERSION
+  ' CHECK PaymentStatus IN ('pending','paid','failed','cancelled','refunded') [fix02]
+  ' CHECK OrderStatus IN ('created','pending','confirmed','cancelled','completed','redeemed') [fix22]
+  ' CHECK CheckinStatus IN ('not_checked_in','checked_in') [fix00]
+}
+
+entity "OrderSeats" as OrderSeats {
+  * OrderId : INT <<PK,FK>>
+  * ShowtimeSeatId : INT <<PK,FK>>
+  --
+  SeatKey : NVARCHAR(20)
+  UnitPrice : DECIMAL(19,2)
+  ' KHÔNG có cột Id — khoá kép thật
+}
+
+entity "ComboFoods" as ComboFoods {
+  * Id : INT <<PK>>
+  --
+  Name : NVARCHAR(150)
+  Price : DECIMAL(19,2)
+  CinemaId : INT <<FK>>
+  ' CinemaId NULL = combo dùng chung toàn hệ thống
+}
+
+entity "OrderComboFoods" as OrderComboFoods {
+  * OrderId : INT <<PK,FK>>
+  * ComboFoodId : INT <<PK,FK>>
+  --
+  Quantity : INT
+  UnitPrice : DECIMAL(19,2)
+  ' KHÔNG có cột Id — khoá kép thật
+}
+
+entity "Invoices" as Invoices {
+  * Id : INT <<PK>>
+  --
+  OrderId : INT <<FK>>
+  InvoiceNo : VARCHAR(20) <<UQ>>
+  InvoiceType : VARCHAR(20) = 'sale'
+  OriginalInvoiceId : INT <<FK>>
+  ' tự tham chiếu Invoices.Id (hoá đơn hoàn = bản ghi mới trỏ về hoá đơn gốc)
+}
+
+entity "InvoiceSequence" as InvoiceSequence {
+  * SequenceYear : INT <<PK>>
+  --
+  NextValue : INT
+}
+
+entity "RefundTransactions" as RefundTransactions {
+  * Id : INT <<PK>>
+  --
+  OrderId : INT <<FK,UQ>>
+  Amount : DECIMAL(19,2)
+  RefundedBy : INT <<FK>>
+}
+
+Users ||--o{ Orders : "UserId → Id"
+Showtimes ||--o{ Orders : "ShowtimeId → Id"
+Promotions |o..o{ Orders : "PromotionId → Id"
+Users |o..o{ Orders : "CheckinByStaffId → Id"
+Orders |o..o{ ShowtimeSeats : "ClaimedByOrderId → Id"
+Orders ||--o{ OrderSeats : "OrderId → Id"
+ShowtimeSeats ||--o| OrderSeats : "ShowtimeSeatId → Id"
+Orders ||--o{ OrderComboFoods : "OrderId → Id"
+ComboFoods ||--o{ OrderComboFoods : "ComboFoodId → Id"
+Cinemas |o..o{ ComboFoods : "CinemaId → Id"
+Orders ||--o| Invoices : "OrderId → Id"
+Invoices |o..o{ Invoices : "OriginalInvoiceId → Id (tự tham chiếu)"
+Orders ||--o| RefundTransactions : "OrderId → Id (UNIQUE, tối đa 1 lần hoàn/đơn)"
+Users ||--o{ RefundTransactions : "RefundedBy → Id"
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ERD 3 — KHUYẾN MÃI · LOYALTY · TÀI KHOẢN & BẢO MẬT                        ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ERD_03_KhuyenMaiLoyaltyBaoMat
+title ERD CineBookDB (3/4) — Khuyến mãi · Loyalty · Tài khoản & Bảo mật
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+
+entity "Users" as Users {
+  * Id : INT <<PK>>
+}
+
+entity "Orders" as Orders {
+  * Id : INT <<PK>>
+}
+
+entity "Promotions" as Promotions {
+  * Id : INT <<PK>>
+  --
+  Code : NVARCHAR(30) <<UQ>>
+  DiscountPercent : FLOAT
+  VoucherType : NVARCHAR(30) = 'PUBLIC'
+  TargetTier : NVARCHAR(20) = 'ALL'
+  PointsRequired : INT
+  PerUserLimit : INT
+  UsageLimit : INT
+  UsedCount : INT
+}
+
+entity "UserVouchers" as UserVouchers {
+  * Id : INT <<PK>>
+  --
+  UserId : INT <<FK>>
+  PromotionId : INT <<FK>>
+  Code : NVARCHAR(50) <<UQ>>
+  IsUsed : BIT
+  UsedOrderId : INT <<FK*>>
+}
+
+entity "PromotionUsage" as PromotionUsage {
+  * Id : INT <<PK>>
+  --
+  PromotionId : INT <<FK>>
+  UserId : INT <<FK>>
+  OrderId : INT <<FK>>
+  ' UNIQUE (PromotionId, UserId)
+}
+
+entity "PointTransactions" as PointTransactions {
+  * Id : INT <<PK>>
+  --
+  UserId : INT <<FK>>
+  Points : INT
+  Type : NVARCHAR(30)
+  OrderId : INT <<FK*>>
+  VoucherId : INT <<FK*>>
+  IdempotencyKey : NVARCHAR(100) <<UQ>>
+}
+
+entity "LoyaltyPointDebtLedger" as LoyaltyPointDebtLedger {
+  * Id : BIGINT <<PK>>
+  --
+  UserId : INT <<FK>>
+  OrderId : INT <<FK>>
+  Points : INT
+  Type : NVARCHAR(30)
+}
+
+entity "RefreshTokens" as RefreshTokens {
+  * Id : INT <<PK>>
+  --
+  UserId : INT <<FK*>>
+  ' fix19 định nghĩa FK nhưng bảng đã tồn tại từ schema.sql (không FK) →
+  ' constraint KHÔNG thực thi trong DB hiện hành, dù ý định thiết kế có FK
+  FamilyId : UNIQUEIDENTIFIER
+  TokenHash : CHAR(64) <<UQ>>
+  ReplacedById : INT <<FK*>>
+  RevokedAt : DATETIME2
+}
+
+entity "PasswordResetTokens" as PasswordResetTokens {
+  * Id : INT <<PK>>
+  --
+  UserId : INT <<FK>>
+  TokenHash : CHAR(64) <<UQ>>
+  ExpiresAt : DATETIME2
+}
+
+entity "LoginAttempts" as LoginAttempts {
+  * Id : INT <<PK>>
+  --
+  Email : NVARCHAR(255)
+  IpAddress : NVARCHAR(64)
+  Success : BIT
+  ' không FK — Email là text tự do
+}
+
+entity "UserAppeals" as UserAppeals {
+  * Id : INT <<PK>>
+  --
+  UserId : INT <<FK>>
+  AppealType : NVARCHAR(20)
+  TicketCode : NVARCHAR(32)
+  OrderId : INT <<FK>>
+  Status : NVARCHAR(20) = 'pending'
+  ResolvedByUserId : INT <<FK>>
+  ' [fix36] CHECK: AppealType='account' → TicketCode/OrderId NULL;
+  '                AppealType='refund'  → TicketCode/OrderId NOT NULL
+  ' [fix36] UNIQUE lọc: tối đa 1 kháng cáo 'pending' mỗi Order / mỗi User
+  ' [fix37] dữ liệu cũ: appeal 'refund' còn pending trên đơn đã hoàn/đã đóng
+  '         được đối soát tự động sang approved/rejected (không đổi schema)
+}
+
+Users ||--o{ UserVouchers : "UserId → Id"
+Promotions ||--o{ UserVouchers : "PromotionId → Id"
+Promotions ||--o{ PromotionUsage : "PromotionId → Id"
+Users ||--o{ PromotionUsage : "UserId → Id"
+Orders ||--o{ PromotionUsage : "OrderId → Id"
+Users ||--o{ PointTransactions : "UserId → Id"
+Users ||--o{ LoyaltyPointDebtLedger : "UserId → Id"
+Orders |o..o{ LoyaltyPointDebtLedger : "OrderId → Id"
+Users ||--o{ RefreshTokens : "UserId → Id (thiết kế; DB hiện không ép FK)"
+Users ||--o{ PasswordResetTokens : "UserId → Id"
+Users ||--o{ UserAppeals : "UserId → Id"
+Orders |o..o{ UserAppeals : "OrderId → Id (kháng cáo hoàn tiền)"
+Users ||--o{ UserAppeals : "ResolvedByUserId → Id"
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ERD 4 — VẬN HÀNH: BÌNH LUẬN · THÔNG BÁO · AUDIT · CẤU HÌNH · BOOKING LOG  ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ERD_04_VanHanhAuditThongBao
+title ERD CineBookDB (4/4) — Bình luận · Thông báo · Audit · Cấu hình · Booking log
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+
+entity "Users" as Users {
+  * Id : INT <<PK>>
+}
+
+entity "Films" as Films {
+  * Id : INT <<PK>>
+}
+
+entity "Orders" as Orders {
+  * Id : INT <<PK>>
+}
+
+entity "Cinemas" as Cinemas {
+  * Id : INT <<PK>>
+}
+
+entity "Comments" as Comments {
+  * Id : INT <<PK>>
+  --
+  UserId : INT <<FK>>
+  FilmId : INT <<FK>>
+  Rate : INT
+  Report : BIT
+  ' UNIQUE (UserId, FilmId)
+}
+
+entity "CommentReports" as CommentReports {
+  * Id : INT <<PK>>
+  --
+  CommentId : INT <<FK>>
+  ReporterUserId : INT <<FK>>
+  Status : NVARCHAR(20) = 'pending'
+}
+
+entity "AdminNotifications" as AdminNotifications {
+  * Id : INT <<PK>>
+  --
+  Category : NVARCHAR(50)
+  ResolvedBy : INT <<FK>>
+}
+
+entity "UserNotifications" as UserNotifications {
+  * Id : INT <<PK>>
+  --
+  TargetType : NVARCHAR(30) = 'ALL'
+  CinemaId : INT <<FK>>
+  CreatedByUserId : INT <<FK>>
+}
+
+entity "NotificationRecipients" as NotificationRecipients {
+  * Id : INT <<PK>>
+  --
+  SourceType : NVARCHAR(20)
+  NotificationId : INT <<FK*>>
+  ' polymorphic: trỏ UserNotifications.Id hoặc AdminNotifications.Id
+  ' tuỳ SourceType — cố ý KHÔNG khai FK
+  UserId : INT <<FK>>
+  ' UNIQUE (SourceType, NotificationId, UserId)
+}
+
+entity "AuditLogs" as AuditLogs {
+  * Id : INT <<PK>>
+  --
+  ActorUserId : INT <<FK>>
+  Action : NVARCHAR(100)
+  DetailJson : NVARCHAR(MAX)
+}
+
+entity "SystemSettings" as SystemSettings {
+  * SettingKey : NVARCHAR(100) <<PK>>
+  --
+  SettingValue : NVARCHAR(MAX)
+  ' [fix38] seed thêm khoá 'refund.appealWindowHours' = '24' nếu chưa có
+}
+
+entity "PolicyDocuments" as PolicyDocuments {
+  * Id : INT <<PK>>
+  --
+  PolicyKey : NVARCHAR(80)
+  VersionNumber : INT
+  Status : NVARCHAR(20)
+  UpdatedBy : INT <<FK>>
+  ' UNIQUE (PolicyKey, VersionNumber)
+}
+
+entity "BookingCommandExecutions" as BookingCommandExecutions {
+  * Id : BIGINT <<PK>>
+  --
+  OrderId : INT <<FK>>
+  IdempotencyKey : NVARCHAR(150)
+  Status : NVARCHAR(20) = 'succeeded'
+  ' UNIQUE (ActorScope, CommandType, IdempotencyKey)
+  ' CHECK Status IN ('processing','succeeded','failed')
+}
+
+entity "BookingStateTransitions" as BookingStateTransitions {
+  * Id : BIGINT <<PK>>
+  --
+  OrderId : INT <<FK>>
+  CommandExecutionId : BIGINT <<FK>>
+  BeforeState : NVARCHAR(40)
+  AfterState : NVARCHAR(40)
+}
+
+entity "BookingOutbox" as BookingOutbox {
+  * Id : BIGINT <<PK>>
+  --
+  AggregateType : NVARCHAR(40)
+  AggregateId : INT
+  ' tham chiếu mềm đa hình theo AggregateType — không FK
+  DedupeKey : NVARCHAR(220) <<UQ>>
+  Status : NVARCHAR(20) = 'pending'
+  ' CHECK Status IN ('pending','processing','completed','failed')
+}
+
+Users ||--o{ Comments : "UserId → Id"
+Films ||--o{ Comments : "FilmId → Id"
+Comments ||--o{ CommentReports : "CommentId → Id"
+Users |o..o{ CommentReports : "ReporterUserId → Id"
+Users ||--o{ AdminNotifications : "ResolvedBy → Id"
+Cinemas ..> UserNotifications : "CinemaId → Id"
+Users ||--o{ UserNotifications : "CreatedByUserId → Id"
+Users ||--o{ NotificationRecipients : "UserId → Id"
+Users |o..o{ AuditLogs : "ActorUserId → Id"
+Users ||--o{ PolicyDocuments : "UpdatedBy → Id"
+Orders ||--o{ BookingCommandExecutions : "OrderId → Id"
+Orders ||--o{ BookingStateTransitions : "OrderId → Id"
+BookingCommandExecutions ||--o{ BookingStateTransitions : "CommandExecutionId → Id"
+@enduml

@@ -1,0 +1,48 @@
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
+<aside class="staff-rail">
+    <div class="staff-rail-brand">
+        <span class="staff-rail-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9a2 2 0 0 0 0 4v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 0 0-4V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2Z"/><path d="M13 5v2m0 3v2m0 3v4"/></svg>
+        </span>
+        <div>
+            <strong>CineBook</strong>
+            <span class="staff-rail-sub">Vận hành quầy vé</span>
+        </div>
+    </div>
+
+    <nav class="staff-rail-nav" aria-label="Điều hướng quầy vé">
+        <a class="${not historyView ? 'is-active' : ''}"
+           href="${pageContext.request.contextPath}/staff/checkin"
+           aria-current="${not historyView ? 'page' : 'false'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 5v4m0 6v4m18-14v4m0 6v4M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M9 9h6m-6 4h4"/></svg>
+            <span>Soát vé &amp; Thu tiền</span>
+        </a>
+        <a class="${historyView ? 'is-active' : ''}"
+           href="${pageContext.request.contextPath}/staff/checkin?view=history"
+           aria-current="${historyView ? 'page' : 'false'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5m4-1v5l3 2"/></svg>
+            <span>Lịch sử check-in</span>
+        </a>
+        <a href="${pageContext.request.contextPath}/orders/history">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="M8 10h8m-8 4h5"/></svg>
+            <span>Vé của tôi</span>
+        </a>
+        <a href="${pageContext.request.contextPath}/profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+            <span>Hồ sơ</span>
+        </a>
+    </nav>
+
+    <div class="staff-rail-foot">
+        <div class="staff-rail-user">
+            <strong>${fn:escapeXml(sessionScope.currentUser.fullName)}</strong>
+            <span>${fn:escapeXml(sessionScope.currentUser.email)}</span>
+        </div>
+        <c:if test="${sessionScope.currentUser.role eq 'manager' or sessionScope.currentUser.role eq 'admin'}">
+            <a class="staff-rail-back" href="${pageContext.request.contextPath}/admin/dashboard">Về khu quản trị</a>
+        </c:if>
+        <a class="staff-rail-logout" href="${pageContext.request.contextPath}/logout">Đăng xuất</a>
+    </div>
+</aside>

@@ -1,0 +1,31 @@
+db.driver=com.microsoft.sqlserver.jdbc.SQLServerDriver
+db.url=jdbc:sqlserver://localhost:1433;databaseName=CineBookDB;encrypt=true;trustServerCertificate=true
+db.username=sa
+db.password=yourStrong(!)Password
+db.pool.maxSize=20
+db.pool.minIdle=2
+db.pool.connectionTimeoutMs=30000
+db.pool.leakDetectionThresholdMs=20000
+db.pool.name=CineBookPool
+ticket.hmac.secret=replace-with-at-least-32-random-characters
+# Khoa ky access token JWT cua /api/v1 (>= 32 ky tu).
+# Bo trong thi khoa duoc dan xuat tu ticket.hmac.secret bang mot nhan phan tach mien,
+# nen he thong van chay; khai bao rieng o day de xoay hai khoa doc lap voi nhau.
+# security.jwt.secret=replace-with-at-least-32-random-characters
+# Nguon du phong cho mail.mode. SystemSettings trong DB THANG file nay — doi che do gui
+# phai UPDATE SystemSettings, sua rieng o day khong co tac dung khi DB doc duoc.
+mail.mode=logfile
+# SMTP mode only: keep credentials in this external file, never in the WAR.
+# Gmail: bat 2FA cho tai khoan roi tao App Password 16 ky tu (mat khau Google thuong bi tu choi).
+# mail.smtp.host=smtp.gmail.com
+# mail.smtp.port=587
+# mail.smtp.username=mailer@example.com
+# mail.smtp.password=replace-me
+# mail.smtp.starttls=true
+# mail.from=mailer@example.com
+# Han timeout cho tung chang SMTP, tinh bang ms. Bo trong thi dung mac dinh 10000.
+# JavaMail mac dinh cho VO HAN, ma pool gui chi co 2 thread — mot may chu SMTP treo se
+# chiem het pool va lam moi la thu sau do khong bao gio duoc gui, cung khong bao loi.
+# mail.smtp.connectiontimeout=10000
+# mail.smtp.timeout=10000
+# mail.smtp.writetimeout=10000

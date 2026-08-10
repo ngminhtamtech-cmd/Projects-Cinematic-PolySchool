@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/*
+ * Design token port nguyen ven tu assets/css/variables.css cua ban JSP.
+ * Giu dung nhan dien thuong hieu: cam #FF7A00 + xanh #034EA2.
+ */
+@theme {
+  --color-primary: #ff7a00;
+  --color-primary-dark: #e06900;
+  --color-primary-light: #ff9833;
+  --color-secondary: #034ea2;
+
+  --color-ink: #18181b;
+  --color-muted: #667085;
+  --color-line: #e5e7eb;
+
+  --color-surface: #ffffff;
+  --color-surface-soft: #f8fafc;
+  --color-surface-dark: #0f172a;
+  --color-dark-bg: #0c1a30;
+
+  --color-success: #2ecc71;
+  --color-danger: #e74c3c;
+  --color-gold: #f1c40f;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-soft: 0 18px 44px rgba(3, 78, 162, 0.08);
+  --shadow-strong: 0 28px 80px rgba(0, 0, 0, 0.15);
+
+  /* Bien font do next/font sinh ra trong layout.tsx */
+  --font-sans: var(--font-be-vietnam);
+  --font-display: var(--font-montserrat);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  line-height: 1.2;
+}

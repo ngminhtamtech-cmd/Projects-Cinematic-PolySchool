@@ -1,0 +1,5 @@
+Xin chào {{name}},
+
+Suất chiếu {{film}} lúc {{showtime}} tại {{cinema}} đã bị hủy.
+Mã đơn: #{{orderId}}
+Đội ngũ CineBook sẽ xử lý quyền lợi hoàn tiền theo trạng thái đơn.

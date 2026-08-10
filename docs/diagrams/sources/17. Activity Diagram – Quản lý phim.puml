@@ -1,0 +1,160 @@
+' =============================================================================
+'  17. Activity Diagram: Quản lý phim
+'
+'  Nguồn đối chiếu: giống Sơ đồ 14 (Sequence cùng nghiệp vụ)
+'    controller/admin/ManagerPortalServlet.java:595  handleFilmPost
+'    service/AdminService.java:231 / 267             saveFilm
+'    service/AdminService.java:780                   deleteFilm
+'    service/AdminService.java:1082                  extendFilmEndDate
+'    service/AdminService.java:7505                  assertGlobalAdmin  (CHỈ admin)
+'    service/AdminService.java:7521                  assertFilmScope    (chỉ chặn manager)
+'    service/FilmDeletionOutcome.java                HARD_DELETED | TOMBSTONED
+'    database/fix35_film_showtime_lifecycle.sql      Films.DeletedAt/DeletedByUserId/DeletionMode
+'
+'  BỐ CỤC — 3 swimlane, KHÔNG phải 4.
+'  Bản nháp đầu dùng 4 lane (thêm lane "Giao diện") và cho mọi nhánh lỗi nhảy về
+'  lane đó để hiển thị thông báo. Kết quả: hơn 10 đường ngang dài cắt qua toàn bộ
+'  sơ đồ, ảnh rộng 5925px và không đọc nổi. Nay mỗi nhánh lỗi KẾT THÚC TẠI CHÍNH
+'  LANE phát hiện ra nó — nội dung thông báo vẫn ghi đủ trong node, chỉ khác là
+'  không vẽ thêm bước "chuyển sang tầng hiển thị" vốn không mang thông tin nghiệp vụ.
+'
+'  Style: guard tường minh trong ngoặc vuông ở mọi nhánh; mọi luồng lỗi kết thúc
+'  ở một node stop rõ ràng, không có nhánh cụt.
+'
+'  Render:
+'    java -jar tools/plantuml/plantuml.jar -tsvg -charset UTF-8 -o ../svg <file>
+'    java -jar tools/plantuml/plantuml.jar -tpng -charset UTF-8 -o ../png --skinparam dpi=450 <file>
+' =============================================================================
+@startuml 17. Activity Diagram – Quản lý phim
+title 17. ACTIVITY DIAGRAM – QUẢN LÝ PHIM
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+  DiamondBackgroundColor white
+}
+
+|Quản lý rạp / Quản trị|
+start
+:đăng nhập, mở /admin/films;
+:chọn thao tác, điền biểu mẫu;
+:gửi form kèm token CSRF;
+
+|Hệ thống (Servlet + Service)|
+if (Token CSRF hợp lệ?) then ([Không hợp lệ])
+  :403 — phiên hết hạn,\nyêu cầu tải lại trang;
+  stop
+else ([Hợp lệ])
+endif
+
+if (Vai >= manager?) then ([Thấp hơn manager])
+  :403 Forbidden;
+  stop
+else ([Đủ quyền])
+endif
+
+:đọc tham số action;
+
+switch (Thao tác nào?)
+
+case ([Tạo mới / Cập nhật])
+  :dựng Film từ form + danh sách cụm rạp\n→ FilmFormCommand;
+  :AdminService.saveFilm(command, actor);
+  if (Đang SỬA phim đã có?) then ([Có])
+    :assertFilmScope(actor, filmId);
+    if (Manager, phim ngoài cụm rạp\nđược phân quyền?) then ([Ngoài phạm vi])
+      :403 "Phim không thuộc\ncụm rạp được phân quyền.";
+      stop
+    else ([Trong phạm vi])
+    endif
+  else ([Tạo mới])
+  endif
+
+  |Cơ sở dữ liệu|
+  :BEGIN TRANSACTION;
+  if (Tạo mới?) then ([Có])
+    :INSERT INTO Films;
+  else ([Cập nhật])
+    :UPDATE Films SET ...;
+  endif
+  :DELETE rồi INSERT lại CinemaFilms\n(gán phim vào các cụm rạp);
+  note right
+    ST-01: lưu phim và gán cụm rạp nằm trong CÙNG
+    một transaction. Trước đây admin tạo phim mà
+    không sinh dòng CinemaFilms nào, nên phim mới
+    không hiện ở màn thêm suất chiếu.
+  end note
+  :INSERT INTO AuditLogs;
+  :COMMIT;
+  :trả về "Đã lưu phim";
+  stop
+
+case ([Xoá phim])
+  |Hệ thống (Servlet + Service)|
+  :AdminService.deleteFilm(filmId, mode,\nconfirmationTitle, actor);
+  :assertGlobalAdmin(actor);
+  if (Actor có phải admin?) then ([Không — kể cả manager])
+    :403 "Chức năng toàn hệ thống\nchỉ dành cho Admin.";
+    stop
+  else ([Là admin])
+  endif
+
+  |Cơ sở dữ liệu|
+  :BEGIN TRANSACTION;
+  :loadFilmDeleteImpact(filmId)\n→ đếm suất chiếu, bình luận,\n   đơn đặt vé liên quan;
+
+  if (Chế độ xoá?) then ([PURGE_COMMENTS])
+    if (Tên xác nhận khớp tên phim?) then ([Sai])
+      :ROLLBACK;
+      :400 "Hãy nhập đúng tên phim để xác nhận\nxoá bình luận vĩnh viễn.";
+      stop
+    else ([Đúng])
+      :DELETE FROM CommentReports;
+      :DELETE FROM Comments WHERE FilmId=?;
+    endif
+  else ([PRESERVE_COMMENTS — giữ bình luận])
+  endif
+
+  if (Chưa có suất chiếu\nVÀ chưa có bình luận?) then ([Chưa có])
+    :DELETE các bản ghi phụ thuộc;
+    :DELETE FROM Films WHERE Id=?;
+    :INSERT AuditLogs (HARD_DELETE_FILM);
+    :COMMIT;
+    :trả về HARD_DELETED —\n"Đã xoá phim vì chưa có\ndữ liệu tham chiếu.";
+    stop
+  else ([Còn dữ liệu lịch sử])
+    :UPDATE Films\nSET DeletedAt=SYSDATETIME(), DeletedByUserId=?,\n    DeletionMode=?, Status='ended'\nWHERE Id=? AND DeletedAt IS NULL;
+    :INSERT AuditLogs (TOMBSTONE_FILM);
+    :COMMIT;
+    :trả về TOMBSTONED —\n"Phim có dữ liệu lịch sử nên\nđã chuyển vào mục Đã xoá.";
+    stop
+  endif
+
+case ([Gia hạn lịch chiếu])
+  |Hệ thống (Servlet + Service)|
+  if (Đã chọn ngày kết thúc mới?) then ([Chưa chọn])
+    :"Vui lòng chọn ngày\nkết thúc chiếu mới.";
+    stop
+  else ([Đã chọn])
+  endif
+  :AdminService.extendFilmEndDate(filmId,\nnewEndDate, actor);
+  :assertFilmScope(actor, filmId);
+
+  |Cơ sở dữ liệu|
+  :UPDATE Films SET EndDate=?;
+  note right
+    CK_Films_EndDate_After_ReleaseDate chặn
+    EndDate < ReleaseDate ngay ở tầng CSDL,
+    không phụ thuộc kiểm tra phía ứng dụng.
+  end note
+  :INSERT AuditLogs;
+  :trả về "Đã gia hạn lịch chiếu\nđến ngày <EndDate>.";
+  stop
+
+endswitch
+
+@enduml

@@ -1,0 +1,13 @@
+db.driver=com.microsoft.sqlserver.jdbc.SQLServerDriver
+db.url=jdbc:sqlserver://localhost:1433;databaseName=CineBookDB_Test;encrypt=true;trustServerCertificate=true
+db.username=sa
+db.password=123456
+db.pool.maxSize=5
+db.pool.minIdle=1
+db.pool.connectionTimeoutMs=10000
+db.pool.leakDetectionThresholdMs=20000
+db.pool.name=CineBookTestPool
+ticket.hmac.secret=test-only-secret-must-have-at-least-32-characters
+# Tuy chon: khoa ky access token JWT. Bo trong thi dan xuat tu ticket.hmac.secret.
+# security.jwt.secret=test-only-jwt-secret-must-have-32-chars
+mail.mode=logfile

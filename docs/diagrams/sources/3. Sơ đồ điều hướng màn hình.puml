@@ -1,0 +1,158 @@
+' =============================================================================
+'  3. Sơ đồ điều hướng màn hình (Screen Navigation Map)
+'
+'  Gộp 5 sitemap NAV-01..05 (vốn tách rời) thành MỘT sơ đồ, vì danh mục hình của
+'  báo cáo chỉ có một mục "Sơ đồ điều hướng màn hình".
+'
+'  Nguồn đối chiếu — mọi route đều lấy từ <url-pattern> thật:
+'    src/main/webapp/WEB-INF/web.xml                    (toàn bộ servlet-mapping)
+'    filter/AuthFilter.java:115  requiredRole()         (vai tối thiểu của từng tiền tố)
+'    controller/auth/AuthServlet.java:115-125           (điều hướng SAU khi đăng nhập theo vai)
+'    controller/system/SystemDashboardServlet.java:13   (/system/dashboard -> /admin/dashboard)
+'    WEB-INF/views/shared/public-header.jspf            (menu công khai)
+'    WEB-INF/views/admin/sidebar.jspf                   (15 mục /admin/* + 3 mục /system/* chỉ admin thấy)
+'    WEB-INF/views/staff/sidebar.jspf                   (3 mục của quầy vé)
+'
+'  Vùng bảo vệ theo AuthFilter.requiredRole():
+'    /system/*  -> admin      | /admin/*   -> manager   | /staff/*  -> staff
+'    /orders /profile /member /invoices /tickets/qr /ticket-refund /appeals -> member
+'    còn lại    -> công khai
+'
+'  Style: trắng đen, linetype ortho (chỉ nét thẳng + gập vuông 90°), không nét cong.
+'
+'  Render:
+'    java -jar tools/plantuml/plantuml.jar -tsvg -charset UTF-8 -o ../svg <file>
+'    java -jar tools/plantuml/plantuml.jar -tpng -charset UTF-8 -o ../png --skinparam dpi=450 <file>
+' =============================================================================
+@startuml 3. Sơ đồ điều hướng màn hình
+title 3. SƠ ĐỒ ĐIỀU HƯỚNG MÀN HÌNH HỆ THỐNG CINEBOOK
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam ArrowThickness 1
+skinparam nodesep 30
+skinparam ranksep 55
+skinparam rectangle {
+  BorderColor black
+  BackgroundColor white
+  RoundCorner 6
+}
+skinparam package {
+  BorderColor black
+  BackgroundColor white
+}
+
+package "A. VÙNG CÔNG KHAI — không cần đăng nhập" {
+  rectangle "Trang chủ\n/home" as P_Home
+  rectangle "Danh sách phim\n/films" as P_Films
+  rectangle "Chi tiết phim\n/films/{id}" as P_FilmDetail
+  rectangle "Hệ thống rạp\n/cinemas" as P_Cinemas
+  rectangle "Lịch chiếu\n/showtimes" as P_Showtimes
+  rectangle "Sơ đồ ghế\n/showtimes/{id}/seats" as P_SeatMap
+  rectangle "Trang đặt vé\n/booking" as P_Booking
+  rectangle "Nội dung biên tập\n/cinetags · /goc-dien-anh\n/su-kien · /rap-dac-biet" as P_Content
+  rectangle "Trang chính sách\n/refund-policy · /ve-chung-toi\n/thoa-thuan-su-dung" as P_Policy
+  rectangle "Đăng nhập\n/login" as P_Login
+  rectangle "Đăng ký\n/register" as P_Register
+  rectangle "Quên mật khẩu\n/forgot-password\n/reset-password" as P_Forgot
+  rectangle "Kháng cáo mở khoá\n/appeal" as P_Appeal
+  rectangle "Menu tài khoản\n(dropdown avatar trên header,\nhiện ở MỌI trang công khai)" as P_AccountMenu
+}
+
+package "B. THÀNH VIÊN (member)" {
+  rectangle "Lịch sử đặt vé\n/orders/history" as M_Orders
+  rectangle "Mã QR vé\n/tickets/qr/{code}" as M_Qr
+  rectangle "Hoá đơn (PDF)\n/invoices/{id}" as M_Invoice
+  rectangle "Yêu cầu hoàn tiền\n/ticket-refund-appeal" as M_Refund
+  rectangle "Hồ sơ cá nhân\n/profile" as M_Profile
+  rectangle "Khách hàng thân thiết\n/member/loyalty" as M_Loyalty
+}
+
+package "C. NHÂN VIÊN QUẦY VÉ (staff)" {
+  rectangle "Soát vé & Thu tiền\n/staff/checkin" as S_Checkin
+}
+
+package "D. QUẢN LÝ RẠP (manager) — giới hạn theo Users.CinemaId" {
+  rectangle "Bảng điều khiển\n/admin/dashboard" as A_Dash
+  rectangle "Danh mục & vận hành rạp\n/admin/films · /admin/cinemas\n/admin/rooms · /admin/showtimes" as A_Catalog
+  rectangle "Người dùng & kiểm duyệt\n/admin/users · /admin/staff\n/admin/comments · /admin/appeals" as A_Users
+  rectangle "Đơn hàng & báo cáo\n/admin/orders · /admin/reports" as A_Orders
+  rectangle "Khuyến mãi & combo\n/admin/promotions · /admin/combos" as A_Promo
+  rectangle "Nội dung & thông báo\n/admin/custom-content\n/admin/notifications · /admin/content/*" as A_Content
+}
+
+package "E. QUẢN TRỊ HỆ THỐNG (admin) — toàn hệ thống" {
+  rectangle "Quản lý manager\n/system/managers" as SY_Managers
+  rectangle "Cấu hình hệ thống\n/system/config" as SY_Config
+  rectangle "Nhật ký kiểm toán\n/system/audit-logs" as SY_Audit
+  rectangle "Sao lưu CSDL\n/system/backup" as SY_Backup
+}
+
+' ===== Điều hướng trong vùng công khai =====
+P_Home --> P_Films
+P_Home --> P_Cinemas
+P_Home --> P_Content
+P_Home --> P_Policy
+P_Films --> P_FilmDetail
+P_FilmDetail --> P_Showtimes
+P_Cinemas --> P_Showtimes
+P_Showtimes --> P_SeatMap
+P_SeatMap --> P_Booking
+P_Home --> P_Login
+P_Login --> P_Register
+P_Login --> P_Forgot
+P_Login --> P_Appeal
+
+' ===== Chốt xác thực: AuthFilter chặn, đẩy về /login kèm returnUrl =====
+P_Booking ..> P_Login : chưa đăng nhập\n(AuthFilter → returnUrl)
+
+' ===== Điều hướng SAU khi đăng nhập, theo vai (AuthServlet:115-125) =====
+' admin được đẩy tới /system/dashboard, nhưng màn hình đó chỉ chuyển tiếp
+' thẳng về /admin/dashboard (SystemDashboardServlet:13) — nên đích thật của
+' cả manager lẫn admin đều là Bảng điều khiển.
+P_Login --> P_AccountMenu : [member]\n→ /home
+P_Login --> S_Checkin : [staff]
+P_Login --> A_Dash : [manager] · [admin]
+
+' ===== Menu tài khoản — cửa vào vùng thành viên từ mọi trang công khai =====
+P_Home --> P_AccountMenu
+P_AccountMenu --> M_Orders
+P_AccountMenu --> M_Profile
+P_AccountMenu --> M_Loyalty
+
+' ===== Vùng thành viên =====
+P_Booking --> M_Orders : đặt vé thành công
+M_Orders --> M_Qr
+M_Orders --> M_Invoice
+M_Orders --> M_Refund
+
+' ===== Vùng quản trị rạp =====
+A_Dash --> A_Catalog
+A_Dash --> A_Users
+A_Dash --> A_Orders
+A_Dash --> A_Promo
+A_Dash --> A_Content
+
+' ===== Vùng quản trị hệ thống (chỉ admin thấy 3 mục này trên sidebar) =====
+A_Dash ..> SY_Managers : [admin]
+A_Dash ..> SY_Config : [admin]
+A_Dash ..> SY_Audit : [admin]
+SY_Config --> SY_Backup
+
+' ===== Quản lý/Quản trị mượn màn hình quầy vé (thứ bậc RoleUtil) =====
+A_Dash ..> S_Checkin : manager/admin\nlàm được việc quầy vé
+
+legend bottom
+  |= Ký hiệu |= Ý nghĩa |
+  | Nét liền, mũi tên tại đích | Điều hướng bình thường giữa hai màn hình |
+  | Nét đứt, mũi tên tại đích | Điều hướng có điều kiện (chặn quyền, chuyển tiếp theo vai) |
+  | Gộp nhiều route vào một hộp | Các màn hình cùng nhóm chức năng, dùng chung sidebar |
+  |= Ghi chú |= |
+  | /system/dashboard KHÔNG phải màn hình riêng — SystemDashboardServlet chuyển tiếp thẳng về /admin/dashboard, | |
+  | nên admin sau đăng nhập cũng dừng ở Bảng điều khiển giống manager. | |
+  | Nếu có tham số returnUrl (do AuthFilter gắn khi chặn) thì đích sau đăng nhập là trang đã bị chặn, không theo bảng vai. | |
+  | Manager chỉ thấy 15 mục /admin/*; ba mục /system/* trong sidebar bọc điều kiện role eq 'admin'. | |
+endlegend
+
+@enduml

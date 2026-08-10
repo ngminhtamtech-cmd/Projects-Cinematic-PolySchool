@@ -1,0 +1,70 @@
+' =============================================================================
+'  CineBook — Activity Diagram: Quản lý Phim/Rạp/Phòng/Suất chiếu (Manager)
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 ACT_04_QuanLyRap.puml
+' =============================================================================
+@startuml ACT_11_QuanLyPhimRapPhongSuatChieu
+title Activity — Quản lý Phim/Rạp/Phòng chiếu/Suất chiếu (Manager, giới hạn theo CinemaId)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Quản lý rạp|
+start
+:đăng nhập, vào /admin/showtimes;
+:chọn "Tạo suất chiếu hàng loạt";
+:chọn phim, phòng chiếu, khung giờ lặp\n(tối đa 31 suất);
+:bấm "Lưu";
+
+|Hệ thống (ManagerPortalServlet)|
+:AuthFilter: role >= manager?;
+if (role hợp lệ?) then ([Không đủ quyền])
+  :403;
+  stop
+else ([Đủ quyền])
+endif
+:AdminService.saveShowtimes(batch, actor);
+:ScopeUtil.assertCinemaScope\n(actor, room.CinemaId);
+if (Phòng chiếu thuộc cụm rạp\ncủa Manager?) then ([Khác cụm rạp])
+  :403 — chặn IDOR;
+  |Giao diện (JSP)|
+  :"Không có quyền trên phòng chiếu này";
+  stop
+else ([Đúng cụm rạp])
+endif
+
+repeat :với mỗi suất trong batch;
+  if (Trùng giờ/buffer với suất\nkhác cùng phòng?) then ([Trùng lịch])
+    :bỏ qua, ghi vào danh sách lỗi;
+  else ([Không trùng])
+    :INSERT Showtimes\n(SaleStatus=ON_SALE);
+  endif
+repeat while (còn suất chưa xử lý?) is ([Còn]) not ([Hết])
+
+:trả kết quả {đã tạo: X, bị bỏ qua: Y};
+|Quản lý rạp|
+:xem tóm tắt kết quả batch;
+
+if (Cần xoá 1 suất đã có đơn đặt?) then ([Có])
+  :bấm "Yêu cầu xoá suất chiếu";
+  |Hệ thống (AdminService)|
+  :previewShowtimeDeletion(id)\n→ hiển thị số đơn/khách bị ảnh hưởng;
+  |Quản lý rạp|
+  :xác nhận xoá 2 pha;
+  |Hệ thống (AdminService)|
+  :requestShowtimeDeletion\n(SaleStatus=SUSPENDED,\nDeleteRequestedAt, DeleteNotBefore);
+  :gửi thông báo huỷ suất chiếu\ncho khách đã đặt (EmailService);
+  note right
+    Xoá thật (SaleStatus=DELETED) chỉ thực hiện
+    sau DeleteNotBefore, qua confirmShowtimeDeletion
+    — hàng rào xoá 2 pha (fix35).
+  end note
+else ([Không])
+endif
+stop
+@enduml

@@ -1,0 +1,6 @@
+Xin chào {{name}},
+
+Chào mừng bạn đến với CineBook. Xác thực địa chỉ email tại:
+{{verifyLink}}
+
+Nếu bạn không tạo tài khoản, hãy bỏ qua thư này.

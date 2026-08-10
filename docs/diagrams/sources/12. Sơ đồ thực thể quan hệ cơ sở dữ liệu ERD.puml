@@ -1,0 +1,345 @@
+' =============================================================================
+'  12. Sơ đồ thực thể quan hệ cơ sở dữ liệu (ERD) — CineBookDB
+'
+'  Nguồn: TRUY VẤN TRỰC TIẾP database CineBookDB đang chạy ngày 2026-08-07
+'    SELECT ... FROM sys.tables            -> 41 bảng vật lý
+'    SELECT ... FROM sys.foreign_keys      -> 56 khoá ngoại giữa 38 bảng trong chuỗi
+'    SELECT ... FROM sys.check_constraints -> 33 ràng buộc CHECK
+'  Đối chiếu chuỗi migration: database/schema.sql -> 9 alter_* -> 3 migration_*
+'    -> alter_and_seed_showtimes_ui.sql -> fix00 -> fix01..fix42 -> seed
+'
+'  38 BẢNG (không phải 41): ba bảng sau CÓ trong DB dev nhưng NGOÀI chuỗi migration
+'  nên không thuộc ERD — Feedbacks, CustomerFeedbacks (đều rỗng, không có script
+'  tạo, không code Java nào đọc) và sysdiagrams (SSMS tự sinh).
+'
+'  QUAN HỆ VỚI ERD_01_TongQuan.puml (bản kỹ thuật hiện có):
+'  Danh sách 55 quan hệ được đối chiếu 1-1 với ERD_01 và GIỮ NGUYÊN, kể cả bội số.
+'  Chỉ khác đúng một chỗ, có chủ ý:
+'    Cinemas -> UserNotifications: ERD_01 vẽ bằng mũi tên phụ thuộc "..>"; bản này
+'    dùng "|o..o{" vì UserNotifications.CinemaId LÀ một khoá ngoại vật lý thật
+'    (có trong sys.foreign_keys) và NULL được — ký pháp chân chim mới đúng loại
+'    quan hệ, còn "..>" không thuộc bộ ký hiệu chân chim mà legend đang mô tả.
+'
+'  Bội số đã kiểm chứng bằng tính NULL của cột khoá ngoại (sys.columns.is_nullable),
+'  không suy đoán. Bốn quan hệ dùng "|o..o{" vì cột cha NULL được:
+'    ShowtimeSeats.ClaimedByOrderId · LoyaltyPointDebtLedger.OrderId
+'    UserAppeals.OrderId · Orders.CheckinByStaffId
+'
+'  QUY ƯỚC ĐỌC: khối entity liệt kê ĐỦ mọi cột khoá. Cặp Users->Orders có HAI đường
+'  vì có hai khoá ngoại khác bản chất: UserId (chủ đơn, NOT NULL, nét liền) và
+'  CheckinByStaffId (nhân viên soát vé, NULL được, nét đứt). Cặp Users->UserAppeals
+'  có 2 FK (UserId, ResolvedByUserId) nhưng vẽ một đường, cột đầy đủ đọc trong entity.
+'
+'  <<FK*>> = tham chiếu NGHIỆP VỤ, KHÔNG có ràng buộc FOREIGN KEY thực thi trong DB
+'            (đã xác minh: không xuất hiện trong sys.foreign_keys).
+'
+'  Style: trắng đen, linetype ortho (chỉ nét thẳng + gập vuông 90°), không nét cong.
+'
+'  Render:
+'    java -jar tools/plantuml/plantuml.jar -tsvg -charset UTF-8 -o ../svg <file>
+'    java -jar tools/plantuml/plantuml.jar -tpng -charset UTF-8 -o ../png --skinparam dpi=450 <file>
+' =============================================================================
+@startuml 12. Sơ đồ thực thể quan hệ cơ sở dữ liệu ERD
+title 12. SƠ ĐỒ THỰC THỂ QUAN HỆ CƠ SỞ DỮ LIỆU (ERD) — CineBookDB\n<size:12>38 bảng · 56 khoá ngoại · đối chiếu trực tiếp sys.tables / sys.foreign_keys ngày 07/08/2026</size>
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam roundcorner 4
+skinparam nodesep 25
+skinparam ranksep 50
+
+' ---- Cụm A: Người dùng & Rạp -------------------------------------------
+entity Cities {
+  * Id <<PK>>
+}
+entity Cinemas {
+  * Id <<PK>>
+  --
+  CityId <<FK>>
+}
+entity Users {
+  * Id <<PK>>
+  --
+  CinemaId <<FK>>
+}
+entity Rooms {
+  * Id <<PK>>
+  --
+  CinemaId <<FK>>
+}
+entity Seats {
+  * Id <<PK>>
+  --
+  RoomId <<FK>>
+}
+
+' ---- Cụm B: Phim & Danh mục ---------------------------------------------
+entity Films {
+  * Id <<PK>>
+  --
+  DeletedByUserId <<FK>>
+}
+entity Categories {
+  * Id <<PK>>
+}
+entity FilmCategories {
+  * FilmId <<PK,FK>>
+  * CategoryId <<PK,FK>>
+}
+entity CinemaFilms {
+  * CinemaId <<PK,FK>>
+  * FilmId <<PK,FK>>
+}
+
+' ---- Cụm C: Suất chiếu & Ghế --------------------------------------------
+entity Showtimes {
+  * Id <<PK>>
+  --
+  FilmId <<FK>>
+  CinemaId <<FK>>
+  RoomId <<FK>>
+  DeleteRequestedByUserId <<FK>>
+}
+entity ShowtimeSeats {
+  * Id <<PK>>
+  --
+  ShowtimeId <<FK>>
+  SeatId <<FK>>
+  HeldByUserId <<FK>>
+  ClaimedByOrderId <<FK>>
+}
+
+' ---- Cụm D: Đặt vé / Đơn hàng -------------------------------------------
+entity Orders {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  ShowtimeId <<FK>>
+  PromotionId <<FK>>
+  CheckinByStaffId <<FK>>
+  RefundedBy <<FK*>>
+  RefundRejectedBy <<FK*>>
+}
+entity OrderSeats {
+  * OrderId <<PK,FK>>
+  * ShowtimeSeatId <<PK,FK>>
+}
+entity ComboFoods {
+  * Id <<PK>>
+  --
+  CinemaId <<FK>>
+}
+entity OrderComboFoods {
+  * OrderId <<PK,FK>>
+  * ComboFoodId <<PK,FK>>
+}
+entity Invoices {
+  * Id <<PK>>
+  --
+  OrderId <<FK>>
+  OriginalInvoiceId <<FK>>
+}
+entity InvoiceSequence {
+  * SequenceYear <<PK>>
+}
+entity RefundTransactions {
+  * Id <<PK>>
+  --
+  OrderId <<FK,UQ>>
+  RefundedBy <<FK>>
+}
+
+' ---- Cụm E: Khuyến mãi & Loyalty ----------------------------------------
+entity Promotions {
+  * Id <<PK>>
+}
+entity UserVouchers {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  PromotionId <<FK>>
+  UsedOrderId <<FK*>>
+}
+entity PromotionUsage {
+  * Id <<PK>>
+  --
+  PromotionId <<FK>>
+  UserId <<FK>>
+  OrderId <<FK>>
+}
+entity PointTransactions {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  OrderId <<FK*>>
+  VoucherId <<FK*>>
+}
+entity LoyaltyPointDebtLedger {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  OrderId <<FK>>
+}
+
+' ---- Cụm F: Tài khoản & Bảo mật -----------------------------------------
+entity RefreshTokens {
+  * Id <<PK>>
+  --
+  UserId <<FK*>>
+  ReplacedById <<FK*>>
+}
+entity PasswordResetTokens {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+}
+entity LoginAttempts {
+  * Id <<PK>>
+}
+entity UserAppeals {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  OrderId <<FK>>
+  ResolvedByUserId <<FK>>
+}
+
+' ---- Cụm G: Bình luận & Kiểm duyệt --------------------------------------
+entity Comments {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  FilmId <<FK>>
+}
+entity CommentReports {
+  * Id <<PK>>
+  --
+  CommentId <<FK>>
+  ReporterUserId <<FK>>
+}
+
+' ---- Cụm H: Thông báo ----------------------------------------------------
+entity AdminNotifications {
+  * Id <<PK>>
+  --
+  ResolvedBy <<FK>>
+}
+entity UserNotifications {
+  * Id <<PK>>
+  --
+  CinemaId <<FK>>
+  CreatedByUserId <<FK>>
+}
+entity NotificationRecipients {
+  * Id <<PK>>
+  --
+  NotificationId <<FK*>>
+  UserId <<FK>>
+}
+
+' ---- Cụm I: Audit / Cấu hình / Chính sách -------------------------------
+entity AuditLogs {
+  * Id <<PK>>
+  --
+  ActorUserId <<FK>>
+}
+entity SystemSettings {
+  * SettingKey <<PK>>
+}
+entity PolicyDocuments {
+  * Id <<PK>>
+  --
+  UpdatedBy <<FK>>
+}
+
+' ---- Cụm K: Booking state machine / outbox ------------------------------
+entity BookingCommandExecutions {
+  * Id <<PK>>
+  --
+  OrderId <<FK>>
+}
+entity BookingStateTransitions {
+  * Id <<PK>>
+  --
+  OrderId <<FK>>
+  CommandExecutionId <<FK>>
+}
+entity BookingOutbox {
+  * Id <<PK>>
+}
+
+' =========================== QUAN HỆ ====================================
+Cities ||--o{ Cinemas
+Cinemas ||--o{ Users
+Cinemas ||--o{ Rooms
+Rooms ||--o{ Seats
+Films ||--o{ FilmCategories
+Categories ||--o{ FilmCategories
+Cinemas ||--o{ CinemaFilms
+Films ||--o{ CinemaFilms
+Films ||--o{ Showtimes
+Cinemas ||--o{ Showtimes
+Rooms ||--o{ Showtimes
+Users |o..o{ Films
+Users |o..o{ Showtimes
+Showtimes ||--o{ ShowtimeSeats
+Seats ||--o{ ShowtimeSeats
+Users ||--o{ ShowtimeSeats
+Orders |o..o{ ShowtimeSeats
+Users ||--o{ Orders
+Users |o..o{ Orders
+Showtimes ||--o{ Orders
+Promotions |o..o{ Orders
+Orders ||--o{ OrderSeats
+ShowtimeSeats ||--o| OrderSeats
+Orders ||--o{ OrderComboFoods
+ComboFoods ||--o{ OrderComboFoods
+Cinemas |o..o{ ComboFoods
+Orders ||--o| Invoices
+Invoices |o..o{ Invoices
+Orders ||--o| RefundTransactions
+Users ||--o{ RefundTransactions
+Users ||--o{ UserVouchers
+Promotions ||--o{ UserVouchers
+Promotions ||--o{ PromotionUsage
+Users ||--o{ PromotionUsage
+Orders ||--o{ PromotionUsage
+Users ||--o{ PointTransactions
+Users ||--o{ LoyaltyPointDebtLedger
+Orders |o..o{ LoyaltyPointDebtLedger
+Users ||--o{ RefreshTokens
+Users ||--o{ PasswordResetTokens
+Users ||--o{ UserAppeals
+Orders |o..o{ UserAppeals
+Users ||--o{ Comments
+Films ||--o{ Comments
+Comments ||--o{ CommentReports
+Users |o..o{ CommentReports
+Users ||--o{ AdminNotifications
+Cinemas |o..o{ UserNotifications
+Users ||--o{ UserNotifications
+Users ||--o{ NotificationRecipients
+Users |o..o{ AuditLogs
+Users ||--o{ PolicyDocuments
+Orders ||--o{ BookingCommandExecutions
+Orders ||--o{ BookingStateTransitions
+BookingCommandExecutions ||--o{ BookingStateTransitions
+
+legend bottom
+  |= Ký hiệu |= Ý nghĩa |
+  | <<PK>> | Khoá chính |
+  | <<FK>> | Khoá ngoại CÓ ràng buộc FOREIGN KEY thực thi trong DB |
+  | <<FK*>> | Tham chiếu nghiệp vụ, KHÔNG có ràng buộc FOREIGN KEY (đã kiểm sys.foreign_keys) |
+  | <<PK,FK>> | Khoá kép của bảng nối — KHÔNG có cột Id IDENTITY riêng |
+  | <<UQ>> | Ràng buộc UNIQUE (RefundTransactions.OrderId: tối đa 1 lần hoàn/đơn) |
+  | Nét liền, đầu "một" là vạch kép | Một — nhiều, bắt buộc phía cha (khoá ngoại NOT NULL) |
+  | Nét đứt, đầu "một" là vạch + vòng tròn | Không hoặc một — nhiều, cha có thể NULL (khoá ngoại NULL được) |
+  | Nét liền, đầu "nhiều" có vòng tròn | Một — không hoặc một (quan hệ 1-1 tuỳ chọn) |
+  |= Ghi chú |= |
+  | 4 bảng nối khoá kép: FilmCategories, CinemaFilms, OrderSeats, OrderComboFoods. | |
+  | 3 bảng có trong DB dev nhưng NGOÀI chuỗi migration, không thuộc ERD: Feedbacks, CustomerFeedbacks, sysdiagrams. | |
+  | Chi tiết cột nghiệp vụ, kiểu dữ liệu và ràng buộc CHECK: xem 4 sơ đồ module ERD-01..04 trong registry.md. | |
+endlegend
+
+@enduml

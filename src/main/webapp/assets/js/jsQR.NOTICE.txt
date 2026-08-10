@@ -1,0 +1,16 @@
+Vendored jsQR browser bundle
+
+- Project: jsQR 1.4.0
+- Upstream: https://github.com/cozmo/jsQR
+- npm package: jsqr@1.4.0
+- Source file: dist/jsQR.js
+- Runtime browser path: qr-codec.js (byte-identical alias; avoids restrictive
+  in-app browser URL filters while retaining the jsQR global export)
+- License: Apache-2.0; the full text is stored in jsQR.LICENSE.txt
+- SHA-256: bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859
+- npm tarball SHA-1: 8efb8d0a7cc6863cb6d95116b9069123ce9eb2d1
+- npm tarball integrity:
+  sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==
+
+The checksum is enforced by PostAbcHardeningContractTest. Update this notice and
+the contract deliberately whenever the vendored upstream version changes.

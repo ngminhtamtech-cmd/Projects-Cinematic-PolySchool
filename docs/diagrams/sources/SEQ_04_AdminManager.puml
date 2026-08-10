@@ -1,0 +1,154 @@
+' =============================================================================
+'  CineBook — Sequence Diagram: Manager/Admin (2 luồng)
+'  Manager quản lý theo CinemaId scope · Admin cấu hình/audit/backup
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 SEQ_04_AdminManager.puml
+' =============================================================================
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 11 — Manager tạo suất chiếu hàng loạt (scope theo CinemaId)           ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_11_ManagerTaoSuatChieuTheoScope
+title Sequence — Manager tạo Suất chiếu hàng loạt (kiểm tra scope theo CinemaId)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Quản lý rạp\n(manager, CinemaId=5)" as Manager
+participant "admin/showtime-form.jsp" as View
+participant "AuthFilter" as Auth
+participant "ManagerPortalServlet" as Servlet
+participant "AdminService" as Svc
+participant "ScopeUtil" as Scope
+database "SQL Server\n(Showtimes, Rooms)" as DB
+
+Manager -> View : chọn phim, phòng chiếu (RoomId thuộc CinemaId=5),\nchọn khung giờ lặp lại (tối đa 31 suất)
+View -> Auth : POST /admin/showtimes\n(_csrf, roomId, filmId, slots[])
+activate Auth
+Auth -> Auth : requiredRole("/admin*") = manager\n[role >= manager] → cho qua
+Auth -> Servlet : forward
+deactivate Auth
+activate Servlet
+Servlet -> Svc : saveShowtimes(batch, actor)
+activate Svc
+Svc -> DB : SELECT Rooms WHERE Id=@roomId
+DB --> Svc : Room{CinemaId}
+Svc -> Scope : assertCinemaScope(actor, room.CinemaId)
+
+alt [room.CinemaId != actor.CinemaId (Manager cố sửa rạp khác)]
+  Scope --> Svc : ném lỗi 403 Forbidden
+  Svc --> Servlet : AccessDeniedException
+  Servlet --> View : 403 "Bạn không có quyền\ntrên phòng chiếu này"
+  View --> Manager : hiển thị lỗi — chặn IDOR
+else [Đúng phạm vi cụm rạp của actor]
+  Scope --> Svc : OK
+  loop [với mỗi suất trong batch, tối đa 31]
+    Svc -> DB : kiểm tra trùng giờ / buffer giữa 2 suất\ncùng phòng [Trùng] / [Không trùng]
+    alt [Trùng lịch chiếu cùng phòng]
+      Svc -> Svc : bỏ qua suất này, ghi vào danh sách lỗi
+    else [Hợp lệ]
+      Svc -> DB : INSERT Showtimes(FilmId, CinemaId, RoomId,\nStartTime, EndTime, BasePrice, SaleStatus='ON_SALE')
+    end
+  end
+  Svc --> Servlet : kết quả {đã tạo: X, bị bỏ qua: Y kèm lý do}
+  deactivate Svc
+  Servlet --> View : 200 — tóm tắt kết quả batch
+  deactivate Servlet
+  View --> Manager : hiển thị "Đã tạo X/31 suất chiếu,\nY suất trùng lịch bị bỏ qua"
+end
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  SEQ 12 — Admin cấu hình hệ thống, xem Audit Log & Sao lưu CSDL            ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml SEQ_12_AdminCauHinhAuditBackup
+title Sequence — Admin cấu hình hệ thống, kích chạy Sweeper thủ công, xem Audit Log & Sao lưu CSDL
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+}
+
+actor "Quản trị hệ thống\n(admin)" as Admin
+participant "system/config.jsp" as ConfigView
+participant "SystemPortalServlet" as Servlet
+participant "AdminService" as Svc
+participant "HoldSweeper" as Sweeper
+participant "system/audit-logs.jsp" as AuditView
+database "SQL Server\n(SystemSettings, AuditLogs)" as DB
+
+Admin -> ConfigView : sửa thông số\n(holdMinutes, sweeper.enabled...)
+ConfigView -> Servlet : POST /system/config\n(_csrf, settingKey, settingValue)
+activate Servlet
+Servlet -> Svc : saveSetting(key, value, actor)
+Svc -> DB : BEGIN TRAN\nUPDATE/INSERT SystemSettings\nINSERT AuditLogs(Action='UPDATE_SETTING',\nActorUserId=actor.id, BeforeJson, AfterJson)\nCOMMIT
+Svc --> Servlet : OK
+Servlet --> ConfigView : "Đã lưu cấu hình"
+deactivate Servlet
+ConfigView --> Admin : hiển thị xác nhận
+
+Admin -> ConfigView : bấm "Kích chạy Sweeper thủ công"
+ConfigView -> Servlet : POST /system/config?action=runSweeper
+activate Servlet
+Servlet -> Sweeper : sweepOnce()\n(gọi trực tiếp ngoài lịch 30s định kỳ)
+activate Sweeper
+Sweeper -> DB : releaseExpiredHolds / cancelExpiredCounterOrders /\ncancelOrphanDraftOrders / cleanupLoginAttempts
+Sweeper --> Servlet : SweepResult
+deactivate Sweeper
+Servlet --> ConfigView : hiển thị kết quả sweep\n(số ghế thu hồi, số đơn huỷ)
+deactivate Servlet
+ConfigView --> Admin : xem kết quả
+
+Admin -> ConfigView : bấm "Giải phóng ghế giữ chỗ thủ công"
+ConfigView -> Servlet : POST /system/config?action=releaseHeldSeats
+Servlet -> Svc : releaseStaleHeldSeats()
+Svc -> DB : UPDATE ShowtimeSeats SET Status='available'\nWHERE Status='held' AND HeldUntil < GETDATE()
+Svc --> Servlet : N ghế đã giải phóng
+Servlet --> ConfigView : hiển thị kết quả
+
+...
+
+Admin -> AuditView : xem Nhật ký Kiểm toán
+AuditView -> Servlet : GET /system/audit-logs
+Servlet -> Svc : listAuditLogs(filter, page)
+Svc -> DB : SELECT ... FROM AuditLogs\nORDER BY CreatedAt DESC\nOFFSET ... FETCH NEXT ... (phân trang bắt buộc)
+DB --> Svc : PageResult<AuditLogEntry>
+Svc --> Servlet : PageResult
+Servlet --> AuditView : hiển thị bảng log (before/after JSON)
+AuditView --> Admin : xem chi tiết từng thao tác
+
+Admin -> AuditView : bấm "Dọn log cũ (>90 ngày)"
+AuditView -> Servlet : POST /system/audit-logs?action=clear
+activate Servlet
+Servlet -> Svc : clearAuditLogs()
+Svc -> DB : DELETE FROM AuditLogs\nWHERE CreatedAt < GETDATE()-90
+Svc --> Servlet : M dòng đã xoá
+Servlet --> AuditView : "Đã dọn M bản ghi log cũ"
+deactivate Servlet
+
+Admin -> ConfigView : bấm "Sao lưu CSDL"
+ConfigView -> Servlet : POST /system/backup
+activate Servlet
+Servlet -> Svc : backupDatabase()
+activate Svc
+Svc -> DB : BACKUP DATABASE CineBookDB\nTO DISK = backup/CineBookDB_<timestamp>.bak
+DB --> Svc : kết quả BACKUP\n[Thành công] / [Lỗi I/O, đĩa đầy...]
+alt [Lỗi khi backup]
+  Svc --> Servlet : lỗi + thông điệp SQL Server
+  Servlet --> ConfigView : hiển thị lỗi backup
+else [Thành công]
+  Svc --> Servlet : đường dẫn file .bak
+  deactivate Svc
+  Servlet --> ConfigView : "Sao lưu thành công: <đường dẫn>"
+end
+deactivate Servlet
+ConfigView --> Admin : xem kết quả sao lưu
+@enduml

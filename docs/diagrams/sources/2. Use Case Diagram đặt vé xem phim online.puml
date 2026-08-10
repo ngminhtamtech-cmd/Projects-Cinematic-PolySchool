@@ -1,0 +1,133 @@
+' =============================================================================
+'  2. Use Case Diagram đặt vé xem phim online (UML 2.5)
+'
+'  Mọi use case đều truy vết được về code thật (không có mục nào suy đoán):
+'    Xem lịch chiếu ............. controller/ShowtimeServlet.java        · GET  /showtimes
+'    Xem sơ đồ ghế .............. controller/booking/ShowtimeSeatServlet · GET  /showtimes/{id}/seats
+'    Đăng nhập .................. controller/auth/AuthServlet.java       · POST /login
+'    Chọn ghế & tạo đơn giữ chỗ . service/BookingService.createDraftOrder· POST /orders
+'    Chọn combo bắp nước ........ BookingService.loadComboMapForShowtime (tham số comboItems)
+'    Áp mã khuyến mãi ........... BookingService.resolvePromotion        · GET /promotions/validate
+'    Thanh toán đơn giữ chỗ ..... BookingService.payOrder                · POST /orders/{id}/pay
+'      ├ bằng thẻ (mô phỏng) .... service/payment/SimulatedGateway.createPayment
+'      └ tại quầy ............... JdbcOrderDAO.confirmCounterOrder (CounterExpiresAt)
+'    Huỷ đơn giữ chỗ ............ BookingService.cancelUserDraftOrder    · POST /orders/{id}/cancel
+'    Nhận vé điện tử & mã QR .... EmailService.sendTicket · TicketQrServlet · GET /tickets/qr/{code}
+'    Gửi yêu cầu hoàn tiền ...... controller/booking/TicketRefundAppealServlet · /ticket-refund-appeal
+'    Thu tiền tại quầy .......... service/StaffService.collectPayment    · POST /staff/checkin
+'    Check-in vé (soát vé QR) ... service/StaffService.checkIn → AdminService.redeemTicket
+'    Thu hồi ghế giữ quá hạn .... service/HoldSweeper.sweepOnce (thread cinebook-hold-sweeper, 30s)
+'
+'  BỐ CỤC: hai actor người dùng khai TRƯỚC khung (dồn về cột trái), hai actor vận
+'  hành khai SAU khung (dồn về cột phải) — cách này giữ mọi liên kết actor ngắn và
+'  không cắt ngang khung. KHÔNG dùng generalization giữa actor: thứ bậc RoleUtil
+'  được ghi trong legend thay vì vẽ, vì ba cạnh kế thừa chạy dọc toàn sơ đồ làm
+'  rối gấp đôi phần thông tin chúng thêm vào.
+'
+'  Style: trắng đen, linetype ortho (chỉ nét thẳng + gập vuông 90°), không nét cong.
+'
+'  Render:
+'    java -jar tools/plantuml/plantuml.jar -tsvg -charset UTF-8 -o ../svg <file>
+'    java -jar tools/plantuml/plantuml.jar -tpng -charset UTF-8 -o ../png --skinparam dpi=450 <file>
+' =============================================================================
+@startuml 2. Use Case Diagram đặt vé xem phim online
+title 2. USE CASE DIAGRAM ĐẶT VÉ XEM PHIM ONLINE (UML 2.5)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam ArrowThickness 1
+' nodesep/ranksep nới rộng: 7 quan hệ <<include>> cùng đổ về ellipse "Đăng nhập",
+' ở khoảng cách mặc định các nhãn «include» chồng lên nhau ngay trước đích.
+skinparam nodesep 55
+skinparam ranksep 110
+skinparam usecase {
+  BorderColor black
+  BackgroundColor white
+  ArrowColor black
+}
+skinparam actor {
+  BorderColor black
+  BackgroundColor white
+}
+left to right direction
+
+' ---- Actor người dùng: khai TRƯỚC khung -> nằm cột trái ----
+actor "Khách vãng lai\n(guest)" as Guest
+actor "Thành viên\n(member)" as Member
+
+rectangle "PHÂN HỆ ĐẶT VÉ XEM PHIM ONLINE — CINEBOOK" {
+
+  ' --- Bước 1: tra cứu công khai ---
+  usecase "Xem lịch chiếu" as UC_Showtimes
+  usecase "Xem sơ đồ ghế" as UC_SeatMap
+
+  usecase "Đăng nhập" as UC_Login
+
+  ' --- Bước 2: giữ chỗ (+ 2 bước tuỳ chọn) ---
+  usecase "Chọn ghế &\ntạo đơn giữ chỗ" as UC_Hold
+  usecase "Chọn combo\nbắp nước" as UC_Combo
+  usecase "Áp mã\nkhuyến mãi" as UC_Promo
+
+  ' --- Bước 3: thanh toán (1 gốc + 2 chuyên biệt hoá) ---
+  usecase "Thanh toán\nđơn giữ chỗ" as UC_Pay
+  usecase "Thanh toán bằng thẻ\n(cổng mô phỏng)" as UC_PayCard
+  usecase "Thanh toán\ntại quầy" as UC_PayCounter
+
+  ' --- Bước 4: sau đặt vé ---
+  usecase "Nhận vé điện tử\n& mã QR" as UC_Ticket
+  usecase "Huỷ đơn giữ chỗ" as UC_Cancel
+  usecase "Gửi yêu cầu\nhoàn tiền" as UC_Refund
+
+  ' --- Vận hành ---
+  usecase "Thu tiền tại quầy" as UC_Collect
+  usecase "Check-in vé\n(soát vé QR)" as UC_CheckIn
+  usecase "Thu hồi ghế\ngiữ quá hạn" as UC_Sweep
+}
+
+' ---- Actor vận hành: khai SAU khung -> nằm cột phải ----
+actor "Nhân viên quầy vé\n(staff)" as Staff
+actor "HoldSweeper\n(tiến trình nền)" as Sweeper
+
+' ===== Actor — Use Case (nét liền, không mũi tên) =====
+Guest -- UC_Showtimes
+Guest -- UC_SeatMap
+Guest -- UC_Login
+
+Member -- UC_Hold
+Member -- UC_Pay
+Member -- UC_Ticket
+Member -- UC_Cancel
+Member -- UC_Refund
+
+UC_Collect -- Staff
+UC_CheckIn -- Staff
+UC_Sweep -- Sweeper
+
+' ===== Chuyên biệt hoá use case thanh toán (nét liền + tam giác rỗng) =====
+UC_PayCard --|> UC_Pay
+UC_PayCounter --|> UC_Pay
+
+' ===== <<extend>> — bước tuỳ chọn, mũi tên chỉ về use case gốc =====
+UC_Combo ..> UC_Hold : <<extend>>
+UC_Promo ..> UC_Hold : <<extend>>
+
+' ===== <<include>> — bắt buộc, nét đứt, mũi tên CHỈ tại đích =====
+UC_Hold ..> UC_Login : <<include>>
+UC_Pay ..> UC_Login : <<include>>
+UC_Ticket ..> UC_Login : <<include>>
+UC_Cancel ..> UC_Login : <<include>>
+UC_Refund ..> UC_Login : <<include>>
+UC_Collect ..> UC_Login : <<include>>
+UC_CheckIn ..> UC_Login : <<include>>
+
+legend bottom
+  |= Ghi chú |
+  | Thứ bậc vai trò (util/RoleUtil.java, cộng dồn): guest < member < staff < manager < admin. |
+  | Nhân viên quầy vé do đó cũng thực hiện được mọi use case của Thành viên — không vẽ để tránh rối. |
+  | "Thu hồi ghế giữ quá hạn" KHÔNG include "Đăng nhập": chạy trên thread nền 30 giây/vòng, ngoài mọi phiên. |
+  | "Chọn ghế & tạo đơn giữ chỗ" giữ ghế 10 phút; ràng buộc: trước cutoff 15 phút, ghế không bảo trì, |
+  | ghế đôi phải đặt cả cặp, tối đa 3 đơn giữ chỗ đang mở trên một suất chiếu. |
+endlegend
+
+@enduml

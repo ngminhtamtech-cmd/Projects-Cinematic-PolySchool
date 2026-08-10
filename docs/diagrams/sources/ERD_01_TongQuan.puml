@@ -1,0 +1,358 @@
+' =============================================================================
+'  CineBook — ERD TỔNG QUAN (chỉ PK/FK) — toàn bộ 44 bảng CineBookDB
+'  Mục đích: xem toàn cảnh quan hệ giữa 44 bảng trong 1 khung nhìn (chi tiết
+'  cột nghiệp vụ đầy đủ xem 4 sơ đồ module ERD_02_CINEBOOK_MODULE.puml).
+'  Nguồn: database/schema.sql + 69 script migration (alter_*, migration_*,
+'  fix00–fix46), đối chiếu 1-1 với danh sách CREATE TABLE thực tế quét được.
+'  Không có bảng nào bị thiếu hoặc thừa so với 44 bảng đã kiểm kê.
+'
+'  Render: java -jar tools/plantuml.jar -tsvg -charset UTF-8 ERD_01_TongQuan.puml
+'          java -jar tools/plantuml.jar -tpng -charset UTF-8 -DPLANTUML_LIMIT_SIZE=16384 ERD_01_TongQuan.puml
+' =============================================================================
+@startuml ERD_00_TongQuan
+title ERD CineBookDB — TỔNG QUAN 44 BẢNG (chỉ Primary Key / Foreign Key)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam roundcorner 4
+
+' ---- Cụm A: Người dùng & Rạp -------------------------------------------
+entity Cities {
+  * Id <<PK>>
+}
+entity Cinemas {
+  * Id <<PK>>
+  --
+  CityId <<FK>>
+}
+entity Users {
+  * Id <<PK>>
+  --
+  CinemaId <<FK>>
+}
+entity Rooms {
+  * Id <<PK>>
+  --
+  CinemaId <<FK>>
+}
+entity Seats {
+  * Id <<PK>>
+  --
+  RoomId <<FK>>
+}
+
+' ---- Cụm B: Phim & Danh mục ---------------------------------------------
+entity Films {
+  * Id <<PK>>
+  --
+  DeletedByUserId <<FK>>
+}
+entity Categories {
+  * Id <<PK>>
+}
+entity FilmCategories {
+  * FilmId <<PK,FK>>
+  * CategoryId <<PK,FK>>
+}
+entity CinemaFilms {
+  * CinemaId <<PK,FK>>
+  * FilmId <<PK,FK>>
+  AssignedByUserId <<FK>>
+}
+
+' ---- Cụm C: Suất chiếu & Ghế --------------------------------------------
+entity Showtimes {
+  * Id <<PK>>
+  --
+  FilmId <<FK>>
+  CinemaId <<FK>>
+  RoomId <<FK>>
+  DeleteRequestedByUserId <<FK>>
+}
+entity ShowtimeSeats {
+  * Id <<PK>>
+  --
+  ShowtimeId <<FK>>
+  SeatId <<FK>>
+  HeldByUserId <<FK>>
+  ClaimedByOrderId <<FK>>
+}
+
+' ---- Cụm D: Đặt vé / Đơn hàng -------------------------------------------
+entity Orders {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  ShowtimeId <<FK>>
+  PromotionId <<FK>>
+  CheckinByStaffId <<FK>>
+  RefundedBy <<FK*>>
+  RefundRejectedBy <<FK*>>
+}
+entity OrderSeats {
+  * OrderId <<PK,FK>>
+  * ShowtimeSeatId <<PK,FK>>
+}
+entity ComboFoods {
+  * Id <<PK>>
+  --
+  CinemaId <<FK>>
+  LegacySourceComboId <<FK>>
+}
+entity OrderComboFoods {
+  * OrderId <<PK,FK>>
+  * ComboFoodId <<PK,FK>>
+}
+entity Invoices {
+  * Id <<PK>>
+  --
+  OrderId <<FK>>
+  OriginalInvoiceId <<FK>>
+}
+entity InvoiceSequence {
+  * SequenceYear <<PK>>
+}
+entity RefundTransactions {
+  * Id <<PK>>
+  --
+  OrderId <<FK,UQ>>
+  RefundedBy <<FK>>
+}
+
+' ---- Cụm E: Khuyến mãi & Loyalty ----------------------------------------
+entity Promotions {
+  * Id <<PK>>
+  --
+  CreatedByUserId <<FK>>
+}
+entity UserVouchers {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  PromotionId <<FK>>
+  UsedOrderId <<FK*>>
+}
+entity PromotionUsage {
+  * Id <<PK>>
+  --
+  PromotionId <<FK>>
+  UserId <<FK>>
+  OrderId <<FK>>
+}
+entity PointTransactions {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  OrderId <<FK*>>
+  VoucherId <<FK*>>
+}
+entity LoyaltyPointDebtLedger {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  OrderId <<FK>>
+}
+
+' ---- Cụm F: Tài khoản & Bảo mật -----------------------------------------
+entity RefreshTokens {
+  * Id <<PK>>
+  --
+  UserId <<FK*>>
+  ReplacedById <<FK*>>
+}
+entity PasswordResetTokens {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+}
+entity LoginAttempts {
+  * Id <<PK>>
+}
+entity UserAppeals {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  OrderId <<FK>>
+  ResolvedByUserId <<FK>>
+  CinemaId <<FK>>
+}
+
+' ---- Cụm G: Bình luận & Kiểm duyệt --------------------------------------
+entity Comments {
+  * Id <<PK>>
+  --
+  UserId <<FK>>
+  FilmId <<FK>>
+}
+entity CommentReports {
+  * Id <<PK>>
+  --
+  CommentId <<FK>>
+  ReporterUserId <<FK>>
+}
+
+' ---- Cụm H: Thông báo ----------------------------------------------------
+entity AdminNotifications {
+  * Id <<PK>>
+  --
+  ResolvedBy <<FK>>
+  CinemaId <<FK>>
+  CreatedByUserId <<FK>>
+  ApprovalRequestId <<FK>>
+}
+entity UserNotifications {
+  * Id <<PK>>
+  --
+  CinemaId <<FK>>
+  CreatedByUserId <<FK>>
+}
+entity NotificationRecipients {
+  * Id <<PK>>
+  --
+  NotificationId <<FK*>>
+  UserId <<FK>>
+}
+
+' ---- Cụm I: Audit / Cấu hình / Chính sách -------------------------------
+entity AuditLogs {
+  * Id <<PK>>
+  --
+  ActorUserId <<FK>>
+}
+entity SystemSettings {
+  * SettingKey <<PK>>
+}
+entity PolicyDocuments {
+  * Id <<PK>>
+  --
+  UpdatedBy <<FK>>
+}
+
+' ---- Cụm J: Quản trị theo rạp & phê duyệt -------------------------------
+entity ApprovalRequests {
+  * Id <<PK>>
+  --
+  CinemaId <<FK>>
+  RequestedByUserId <<FK>>
+  ReviewedByUserId <<FK>>
+}
+entity FilmRequestDetails {
+  * RequestId <<PK,FK>>
+  --
+  ExistingFilmId <<FK>>
+}
+entity FilmRequestCategories {
+  * RequestId <<PK,FK>>
+  * CategoryId <<PK,FK>>
+}
+entity RoomRequestDetails {
+  * RequestId <<PK,FK>>
+}
+entity RoomRequestSeats {
+  * RequestId <<PK,FK>>
+  * SeatKey <<PK>>
+}
+entity CinemaContents {
+  * CinemaId <<PK,FK>>
+  * ContentKey <<PK>>
+  --
+  UpdatedByUserId <<FK>>
+}
+
+' ---- Cụm K: Booking state machine / outbox ------------------------------
+entity BookingCommandExecutions {
+  * Id <<PK>>
+  --
+  OrderId <<FK>>
+}
+entity BookingStateTransitions {
+  * Id <<PK>>
+  --
+  OrderId <<FK>>
+  CommandExecutionId <<FK>>
+}
+entity BookingOutbox {
+  * Id <<PK>>
+}
+
+Cities ||--o{ Cinemas
+Cinemas ||--o{ Users
+Cinemas ||--o{ Rooms
+Rooms ||--o{ Seats
+Films ||--o{ FilmCategories
+Categories ||--o{ FilmCategories
+Cinemas ||--o{ CinemaFilms
+Films ||--o{ CinemaFilms
+Users |o..o{ CinemaFilms
+CinemaFilms ||--o{ Showtimes
+Films ||--o{ Showtimes
+Cinemas ||--o{ Showtimes
+Rooms ||--o{ Showtimes
+Users |o..o{ Films
+Users |o..o{ Showtimes
+Showtimes ||--o{ ShowtimeSeats
+Seats ||--o{ ShowtimeSeats
+Users ||--o{ ShowtimeSeats
+Orders |o..o{ ShowtimeSeats
+Users ||--o{ Orders
+Showtimes ||--o{ Orders
+Promotions |o..o{ Orders
+Users |o..o{ Orders
+Orders ||--o{ OrderSeats
+ShowtimeSeats ||--o| OrderSeats
+Orders ||--o{ OrderComboFoods
+ComboFoods ||--o{ OrderComboFoods
+Cinemas |o..o{ ComboFoods
+ComboFoods |o..o{ ComboFoods
+Orders ||--o| Invoices
+Invoices |o..o{ Invoices
+Orders ||--o| RefundTransactions
+Users ||--o{ RefundTransactions
+Users ||--o{ UserVouchers
+Promotions ||--o{ UserVouchers
+Promotions ||--o{ PromotionUsage
+Users ||--o{ PromotionUsage
+Orders ||--o{ PromotionUsage
+Users ||--o{ PointTransactions
+Users ||--o{ LoyaltyPointDebtLedger
+Orders |o..o{ LoyaltyPointDebtLedger
+Users ||--o{ RefreshTokens
+Users ||--o{ PasswordResetTokens
+Users ||--o{ UserAppeals
+Orders |o..o{ UserAppeals
+Users |o..o{ UserAppeals
+Cinemas |o..o{ UserAppeals
+Users ||--o{ Comments
+Films ||--o{ Comments
+Comments ||--o{ CommentReports
+Users |o..o{ CommentReports
+Users ||--o{ AdminNotifications
+Cinemas |o..o{ AdminNotifications
+ApprovalRequests |o..o{ AdminNotifications
+Cinemas ..> UserNotifications
+Users ||--o{ UserNotifications
+Users ||--o{ NotificationRecipients
+Users |o..o{ AuditLogs
+Users ||--o{ PolicyDocuments
+Cinemas ||--o{ ApprovalRequests
+Users ||--o{ ApprovalRequests
+ApprovalRequests ||--o| FilmRequestDetails
+Films |o..o{ FilmRequestDetails
+ApprovalRequests ||--o{ FilmRequestCategories
+Categories ||--o{ FilmRequestCategories
+ApprovalRequests ||--o| RoomRequestDetails
+ApprovalRequests ||--o{ RoomRequestSeats
+Cinemas ||--o{ CinemaContents
+Users ||--o{ CinemaContents
+Users ||--o{ Promotions
+Orders ||--o{ BookingCommandExecutions
+Orders ||--o{ BookingStateTransitions
+BookingCommandExecutions ||--o{ BookingStateTransitions
+
+note bottom
+  44/44 bảng đã kiểm kê (quét "CREATE TABLE" trên toàn bộ database/*.sql).
+  Chi tiết cột, kiểu dữ liệu, ràng buộc UNIQUE/CHECK/DEFAULT: xem ERD module 1–4.
+  <<FK*>> = tham chiếu nghiệp vụ KHÔNG có ràng buộc FOREIGN KEY thực thi trong DB.
+end note
+@enduml

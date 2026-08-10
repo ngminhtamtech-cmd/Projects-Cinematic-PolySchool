@@ -1,0 +1,282 @@
+' =============================================================================
+'  16. Sequence Diagram: Đặt vé xem phim online
+'
+'  Gộp hai pha của một lượt đặt vé hoàn chỉnh: GIỮ GHẾ (POST /orders) và
+'  THANH TOÁN (POST /orders/{id}/pay). Bộ sơ đồ kỹ thuật tách thành SEQ-04 và
+'  SEQ-05; báo cáo chỉ có một mục nên gộp lại để thấy trọn vòng đời.
+'
+'  Nguồn đối chiếu (đọc trực tiếp mã nguồn, không suy đoán):
+'    controller/booking/OrderServlet.java:116    -> createOrder, bắt buộc X-Idempotency-Key
+'    controller/booking/OrderServlet.java:157    -> payOrder
+'    service/BookingService.java:248             -> createDraftOrder
+'    service/BookingService.java:414             -> payOrder
+'    service/BookingService.java:699             -> ensureDraftQuotaAvailable (UPDLOCK trên Orders)
+'    service/ShowtimeLifecycleLock.java          -> sp_getapplock 'Exclusive'/'Transaction', timeout 10s
+'    service/BookingCommandStore.java            -> begin/complete, chống phát lại theo idempotency key
+'    dao/ShowtimeSeatDAO.java                    -> lockSeats / markHeld / markBooked /
+'                                                   countActiveHoldsByUser / releaseExpiredHolds
+'    dao/OrderDAO.java                           -> insertDraftOrder / findPendingOrderForUpdate /
+'                                                   markPaid / confirmCounterOrder
+'    service/payment/SimulatedGateway.java       -> cổng thanh toán MÔ PHỎNG (không có cổng thật)
+'    service/LoyaltyService.java:130             -> addPointsOnPayment, khoá EARN_PURCHASE:{orderId}
+'    service/InvoiceService.java                 -> issueSale (sau commit)
+'    service/EmailService.java                   -> sendTicket (bất đồng bộ, sau commit)
+'    service/HoldSweeper.java:134                -> sweepOnce mỗi 30 giây
+'
+'  BA ĐIỂM KỸ THUẬT PHẢI THỂ HIỆN ĐÚNG:
+'    1. THỨ TỰ KHOÁ THỐNG NHẤT: ShowtimeLifecycleLock -> Orders -> ShowtimeSeats.
+'       Cả createDraftOrder lẫn payOrder đều đi đúng chiều này. Trước đây đường tạo đơn
+'       khoá ghế trước rồi mới lấy UPDLOCK trên Orders — hai đường ngược chiều nhau,
+'       đúng định nghĩa một vòng deadlock (B.1).
+'    2. HẠN GIỮ GHẾ kiểm bằng GETDATE() NGAY TRONG SQL (countActiveHoldsByUser), không
+'       so sánh bằng giờ ứng dụng. Vòng lặp Java chỉ thấy Status='held' nên một hold đã
+'       quá hạn mà sweeper chưa kịp thu vẫn lọt qua (CB-ISS-005).
+'    3. CỘNG ĐIỂM nằm TRONG transaction thanh toán, khoá idempotency EARN_PURCHASE:{orderId};
+'       còn XUẤT HOÁ ĐƠN và GỬI MAIL nằm NGOÀI, sau commit.
+'
+'  Render:
+'    java -jar tools/plantuml/plantuml.jar -tsvg -charset UTF-8 -o ../svg <file>
+'    java -jar tools/plantuml/plantuml.jar -tpng -charset UTF-8 -o ../png --skinparam dpi=450 <file>
+' =============================================================================
+@startuml 16. Sequence Diagram – Đặt vé xem phim online
+title 16. SEQUENCE DIAGRAM – ĐẶT VÉ XEM PHIM ONLINE\n<size:12>Thành viên → OrderServlet → BookingService → DAO → SQL Server · hai pha: giữ ghế và thanh toán</size>
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 280
+
+actor "Thành viên" as User
+participant "booking/page.jsp" as JSP <<view>>
+participant "OrderServlet" as Ctrl <<controller>>
+participant "BookingService" as Svc <<service>>
+participant "ShowtimeSeatDAO\nOrderDAO" as DAO <<repository>>
+database "SQL Server\nCineBookDB" as DB
+participant "SimulatedGateway" as Pay <<gateway>>
+participant "LoyaltyService\nInvoiceService\nEmailService" as Post <<service>>
+
+== PHA A — GIỮ GHẾ (POST /orders) ==
+
+User -> JSP : chọn suất chiếu, chọn ghế,\nchọn combo, nhập mã khuyến mãi
+activate JSP
+JSP -> Ctrl : POST /orders\nX-CSRF-Token, X-Idempotency-Key\n{showtimeId, seatIds, comboItems, promotionCode, paymentMethod}
+deactivate JSP
+activate Ctrl
+
+alt thiếu X-Idempotency-Key
+  Ctrl --> JSP : 400 IDEMPOTENCY_KEY_REQUIRED
+else có khoá
+  Ctrl -> Svc : createDraftOrder(userId, showtimeId, seatIds,\ncombos, promo, method, idempotencyKey)
+  activate Svc
+end
+
+Svc -> DAO : findByIdempotencyKey(key)
+activate DAO
+DAO --> Svc : đơn cũ (nếu có)
+deactivate DAO
+opt tìm thấy đơn cũ CỦA CHÍNH người gọi
+  Svc --> Ctrl : trả lại đơn cũ, replayed = true
+  note right of Svc
+    Khoá phát lại phải gắn với CHỦ ĐƠN. Bản cũ trả
+    thẳng đơn tìm được, nên một khoá đoán/lấy được
+    của người khác làm POST /orders trả về orderId
+    và ticketCode thật của họ (BUG-02). Lệch chủ
+    đơn nay trả 409 trung tính.
+  end note
+end
+
+Svc -> DB : BEGIN TRANSACTION
+activate DB
+Svc -> DB : ShowtimeLifecycleLock.acquire(showtimeId)\nEXEC sys.sp_getapplock @LockMode='Exclusive',\n@LockOwner='Transaction', @LockTimeout=10000
+note right of DB
+  Khoá theo suất chiếu, dùng chung với đường
+  ngưng bán / xoá suất chiếu của quản trị:
+  hoặc draft tạo xong trước khi ngưng bán,
+  hoặc yêu cầu ngưng bán thắng và draft bị chặn.
+end note
+
+Svc -> DB : ensureShowtimeBookable\n— so sánh cutoff TRONG SQL:\nDATEADD(MINUTE, 15, GETDATE()) <= StartTime
+alt quá hạn đặt vé / suất chiếu không ở trạng thái ON_SALE
+  Svc -> DB : ROLLBACK
+  Svc --> JSP : 409 "Suất chiếu không còn nhận đặt vé."
+end
+
+Svc -> DB : ensureDraftQuotaAvailable\nSELECT COUNT(*) FROM Orders WITH (UPDLOCK)\nWHERE UserId=? AND ShowtimeId=? AND OrderStatus='created'
+alt số đơn giữ chỗ đang mở >= booking.maxOpenDraftsPerShowtime (mặc định 3)
+  Svc -> DB : ROLLBACK
+  Svc --> JSP : 409 "Bạn đang có N đơn giữ chỗ chưa thanh toán."
+end
+
+Svc -> DAO : releaseExpiredHolds(conn, showtimeId)
+Svc -> DAO : lockSeats(conn, showtimeId, seatIds)
+activate DAO
+DAO -> DB : SELECT ... FROM ShowtimeSeats\nWITH (UPDLOCK, ROWLOCK)\nWHERE Id IN (...)
+DB --> DAO : các dòng ghế đã bị khoá
+DAO --> Svc : List<ShowtimeSeat>
+deactivate DAO
+
+alt ghế đã held/booked bởi người khác
+  Svc -> DB : ROLLBACK
+  Svc --> JSP : 409 "Ghế <mã> đã được giữ\nhoặc đặt bởi người khác."
+else ghế đang bảo trì
+  Svc -> DB : ROLLBACK
+  Svc --> JSP : 400 "Ghế <mã> đang bảo trì."
+else ghế đôi chỉ chọn một nửa
+  Svc -> DB : ROLLBACK
+  Svc --> JSP : 400 "Ghế đôi là đơn vị đặt chỗ\nkhông thể tách rời."
+else tất cả hợp lệ
+  Svc -> Svc : tính seatSubtotal, comboSubtotal,\nresolvePromotion → discountAmount, totalAmount
+  Svc -> DAO : insertDraftOrder(conn, order)
+  activate DAO
+  DAO -> DB : INSERT INTO Orders\n(OrderStatus='created', PaymentStatus='pending', ...)
+  DB --> DAO : orderId
+  DAO -> DB : INSERT INTO OrderSeats / OrderComboFoods
+  deactivate DAO
+  Svc -> DAO : markHeld(conn, seatIds, userId, orderId, 10)
+  activate DAO
+  DAO -> DB : UPDATE ShowtimeSeats\nSET Status='held', HeldByUserId=?, ClaimedByOrderId=?,\n    HeldUntil=DATEADD(MINUTE, 10, GETDATE())
+  deactivate DAO
+  Svc -> DB : COMMIT
+  deactivate DB
+  Svc --> Ctrl : OrderRecord {orderId, ticketCode,\nlifecycleState = DRAFT_HELD}
+  deactivate Svc
+  Ctrl --> JSP : 200 JSON — bắt đầu đếm ngược 10 phút
+  activate JSP
+end
+
+JSP --> User : hiển thị đơn giữ chỗ\n+ đồng hồ đếm ngược
+deactivate JSP
+deactivate Ctrl
+
+== PHA B — THANH TOÁN (POST /orders/{id}/pay) ==
+
+User -> JSP : chọn phương thức thanh toán,\nbấm "Thanh toán"
+activate JSP
+JSP -> Ctrl : POST /orders/{id}/pay\nX-CSRF-Token, X-Idempotency-Key
+deactivate JSP
+activate Ctrl
+Ctrl -> Svc : payOrder(userId, orderId, combos,\npromo, method, idempotencyKey)
+activate Svc
+
+Svc -> DB : BEGIN TRANSACTION
+activate DB
+Svc -> DB : ShowtimeLifecycleLock.acquire(showtimeId)
+note right of DB
+  ĐÚNG THỨ TỰ KHOÁ như pha A:
+  ShowtimeLifecycleLock → Orders → ShowtimeSeats.
+  Hai đường đi cùng chiều nên không tạo được
+  vòng chờ chéo giữa tạo đơn và thanh toán.
+end note
+Svc -> DAO : findPendingOrderForUpdate(conn, orderId, userId)
+activate DAO
+DAO -> DB : SELECT ... FROM Orders WITH (UPDLOCK)\nWHERE Id=? AND UserId=? AND OrderStatus='created'
+DB --> DAO : đơn hoặc rỗng
+DAO --> Svc : Optional<OrderRecord>
+deactivate DAO
+
+alt không còn đơn ở trạng thái chờ
+  Svc -> Svc : settledReplayInTransaction(...)\ntìm kết quả của lần thanh toán đã chốt
+  alt tìm thấy — đây là lần gọi lại cùng khoá
+    Svc -> DB : COMMIT
+    Svc --> JSP : 200 trả lại kết quả cũ, replayed = true
+  else không có
+    Svc -> DB : ROLLBACK
+    Svc --> JSP : 404 "Không tìm thấy đơn cho thanh toán."
+  end
+end
+
+Svc -> DAO : lockSeats(conn, showtimeId, seatIds)
+Svc -> DAO : countActiveHoldsByUser(conn, showtimeId, seatIds, userId)
+activate DAO
+DAO -> DB : SELECT COUNT(*) FROM ShowtimeSeats\nWHERE Status='held' AND HeldByUserId=?\n  AND ClaimedByOrderId=? AND HeldUntil > GETDATE()
+DB --> DAO : số ghế còn giữ hợp lệ
+DAO --> Svc : count
+deactivate DAO
+alt count ≠ số ghế của đơn
+  Svc -> DB : ROLLBACK
+  Svc --> JSP : 409 "Giữ ghế đã hết hạn hoặc\nbị thay đổi. Vui lòng đặt lại."
+end
+
+alt phương thức = thẻ (mô phỏng)
+  Svc -> Pay : createPayment(order)
+  activate Pay
+  Pay --> Svc : PaymentResult {success, transactionId, provider}
+  deactivate Pay
+  alt cổng từ chối
+    Svc -> DB : ROLLBACK
+    Svc --> JSP : 400 thông báo lỗi từ cổng
+  else chấp nhận
+    Svc -> DAO : markPaid(conn, orderId, ticketCode, qrUrl,\ntransactionId, provider)
+    activate DAO
+    DAO -> DB : UPDATE Orders\nSET OrderStatus='confirmed', PaymentStatus='paid'
+    deactivate DAO
+  end
+else phương thức = tại quầy
+  Svc -> DAO : confirmCounterOrder(conn, orderId, ticketCode,\nqrUrl, counter.expiryMinutes)
+  activate DAO
+  DAO -> DB : UPDATE Orders\nSET OrderStatus='confirmed', PaymentStatus='pending',\n    CounterExpiresAt=DATEADD(MINUTE, 30, GETDATE())
+  deactivate DAO
+  note right of DB
+    Đơn tại quầy giữ PaymentStatus='pending' cho tới
+    khi nhân viên thu tiền. Trước bước đó vé không
+    check-in được và khách chưa được cộng điểm.
+  end note
+end
+
+Svc -> DAO : markBooked(conn, seatIds, orderId)
+activate DAO
+DAO -> DB : UPDATE ShowtimeSeats SET Status='booked'
+deactivate DAO
+opt có áp mã khuyến mãi
+  Svc -> DB : UPDATE Promotions SET UsedCount=UsedCount+1\nINSERT INTO PromotionUsage (...)
+end
+
+opt PaymentStatus = 'paid'
+  Svc -> Post : addPointsOnPayment(conn, userId, total, orderId)
+  activate Post
+  Post -> DB : INSERT INTO PointTransactions\n(IdempotencyKey='EARN_PURCHASE:{orderId}')\nUPDATE Users SET LoyaltyPoints=..., TotalSpent=...
+  note right of Post
+    Cộng điểm nằm TRONG transaction thanh toán và
+    khoá theo orderId: thử lại thanh toán không
+    cộng điểm hai lần.
+  end note
+  deactivate Post
+end
+
+Svc -> DB : COMMIT
+deactivate DB
+
+== PHA C — việc sau khi commit (không giữ khoá) ==
+
+opt PaymentStatus = 'paid'
+  Svc -> Post : InvoiceService.issueSale(orderId)
+  Svc -> Post : EmailService.sendTicket(...)  [bất đồng bộ]
+end
+Svc -> DB : ghi AuditLogs (Action='PAY_ORDER')\nkèm ảnh chụp trạng thái trước/sau
+Svc --> Ctrl : OrderRecord {ticketCode,\nlifecycleState = PAID_CONFIRMED | COUNTER_AWAITING_PAYMENT}
+deactivate Svc
+Ctrl --> JSP : 200 JSON + historyUrl
+deactivate Ctrl
+activate JSP
+JSP --> User : hiển thị vé điện tử và mã QR
+deactivate JSP
+
+== Luồng song song — thu hồi ghế quá hạn ==
+
+note over Svc, DB
+  HoldSweeper chạy trên thread nền "cinebook-hold-sweeper" mỗi 30 giây:
+  (1) thu hồi hold quá hạn  (2) huỷ đơn tại quầy quá CounterExpiresAt
+  (3) huỷ đơn nháp mồ côi (CancelReason='auto-expired')  (4) dọn LoginAttempts > 90 ngày.
+  Gặp khoá thì BỎ vòng và thử lại sau 30 giây — sweeper không bao giờ chặn luồng đặt vé.
+end note
+
+legend bottom
+  |= Ghi chú |
+  | Thứ tự khoá thống nhất ở cả hai pha: ShowtimeLifecycleLock → Orders (UPDLOCK) → ShowtimeSeats (UPDLOCK, ROWLOCK). |
+  | Mọi mốc thời gian nghiệp vụ (cutoff, HeldUntil, CounterExpiresAt) so sánh bằng GETDATE() TRONG SQL, không dùng giờ ứng dụng. |
+  | Cộng điểm nằm trong transaction; xuất hoá đơn, gửi mail và ghi audit nằm ngoài, sau commit. |
+  | Chỉ tồn tại SimulatedGateway — hệ thống chưa tích hợp cổng thanh toán thật nào. |
+endlegend
+
+@enduml

@@ -1,0 +1,274 @@
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
+<%@ taglib prefix="cbf" uri="https://cinebook.local/functions" %>
+<header class="site-header sticky-header">
+    <div class="header-shell">
+        <!-- 1. Logo -->
+        <a class="brand" href="${pageContext.request.contextPath}/home" aria-label="CineBook Trang chủ">
+            <svg class="brand-logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="32" height="32" rx="9" fill="url(#headerBrandGrad)"/>
+                <path d="M10 10.5C10 9.67157 10.6716 9 11.5 9H20.5C21.3284 9 22 9.67157 22 10.5V21.5C22 22.3284 21.3284 23 20.5 23H11.5C10.6716 23 10 22.3284 10 21.5V10.5Z" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M14.5 13L19 16L14.5 19V13Z" fill="white"/>
+                <defs>
+                    <linearGradient id="headerBrandGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#FF7A00"/>
+                        <stop offset="1" stop-color="#EA580C"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            <span class="brand-title">Cine<span class="accent">Book</span></span>
+        </a>
+
+        <!-- 2. Nút CTA "★ Mua Vé" -->
+        <a class="cta-buy-ticket" href="${pageContext.request.contextPath}/booking">
+            <span class="star-icon">★</span> Mua Vé
+        </a>
+
+        <!-- Menu chính -->
+        <nav class="nav primary-nav" data-mobile-drawer aria-label="Điều hướng chính">
+            <!-- Dropdown 1: Phim -->
+            <div class="menu-item has-dropdown">
+                <a class="nav-link" href="#">Phim <span class="arrow">▾</span></a>
+                <div class="dropdown-pane mega-dropdown">
+                    <div class="mega-grid">
+                        <div class="mega-col">
+                            <h4 class="col-title">PHIM ĐANG CHIẾU</h4>
+                            <div class="film-grid-mini">
+                                <c:forEach var="film" items="${headerNowShowingFilms}" varStatus="status">
+                                    <c:if test="${status.index < 4}">
+                                        <a href="${pageContext.request.contextPath}/films/${fn:escapeXml(film.id)}" class="mini-film-card">
+                                            <div class="mini-poster" style="background-image: url('${fn:escapeXml(cbf:assetUrl(pageContext.request.contextPath, empty film.thumbnail ? '/assets/img/default-film.jpg' : film.thumbnail))}')">
+                                                <span class="mini-badge-rating">⭐ ${fn:escapeXml(film.rating)}</span>
+                                                <span class="mini-badge-age">${fn:escapeXml(film.ageRating)}</span>
+                                            </div>
+                                            <span class="mini-title">${fn:escapeXml(film.title)}</span>
+                                        </a>
+                                    </c:if>
+                                </c:forEach>
+                                <c:if test="${empty headerNowShowingFilms}">
+                                    <span class="empty-dropdown-text">Không có phim đang chiếu</span>
+                                </c:if>
+                            </div>
+                        </div>
+                        <div class="mega-col">
+                            <h4 class="col-title">PHIM SẮP CHIẾU</h4>
+                            <div class="film-grid-mini">
+                                <c:forEach var="film" items="${headerUpcomingFilms}" varStatus="status">
+                                    <c:if test="${status.index < 4}">
+                                        <a href="${pageContext.request.contextPath}/films/${fn:escapeXml(film.id)}" class="mini-film-card">
+                                            <div class="mini-poster" style="background-image: url('${fn:escapeXml(cbf:assetUrl(pageContext.request.contextPath, empty film.thumbnail ? '/assets/img/default-film.jpg' : film.thumbnail))}')">
+                                                <span class="mini-badge-date">${fn:escapeXml(film.releaseDate)}</span>
+                                                <span class="mini-badge-age">${fn:escapeXml(film.ageRating)}</span>
+                                            </div>
+                                            <span class="mini-title">${fn:escapeXml(film.title)}</span>
+                                        </a>
+                                    </c:if>
+                                </c:forEach>
+                                <c:if test="${empty headerUpcomingFilms}">
+                                    <span class="empty-dropdown-text">Không có phim sắp chiếu</span>
+                                </c:if>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dropdown 2: CineTag# -->
+            <div class="menu-item has-dropdown">
+                <a class="nav-link" href="#">CineTag# <span class="arrow">▾</span></a>
+                <div class="dropdown-pane simple-dropdown">
+                    <a href="${pageContext.request.contextPath}/cinetags?tag=movie-verse">Movie-verse</a>
+                    <a href="${pageContext.request.contextPath}/cinetags?tag=fan-wibu">Fan Wibu</a>
+                    <a href="${pageContext.request.contextPath}/cinetags?tag=inner-child">Inner Child</a>
+                    <a href="${pageContext.request.contextPath}/cinetags?tag=yolo">#Yolo</a>
+                </div>
+            </div>
+
+            <!-- Dropdown 3: Góc Điện Ảnh -->
+            <div class="menu-item has-dropdown">
+                <a class="nav-link" href="#">Góc Điện Ảnh <span class="arrow">▾</span></a>
+                <div class="dropdown-pane simple-dropdown">
+                    <a href="${pageContext.request.contextPath}/goc-dien-anh/the-loai">Thể Loại Phim</a>
+                    <a href="${pageContext.request.contextPath}/goc-dien-anh/dien-vien">Diễn Viên</a>
+                    <a href="${pageContext.request.contextPath}/goc-dien-anh/dao-dien">Đạo Diễn</a>
+                    <a href="${pageContext.request.contextPath}/goc-dien-anh/binh-luan">Bình Luận Phim</a>
+                    <a href="${pageContext.request.contextPath}/goc-dien-anh/blog">Blog Điện Ảnh</a>
+                </div>
+            </div>
+
+            <!-- Dropdown 4: Sự Kiện -->
+            <div class="menu-item has-dropdown">
+                <a class="nav-link" href="#">Sự Kiện <span class="arrow">▾</span></a>
+                <div class="dropdown-pane simple-dropdown">
+                    <a href="${pageContext.request.contextPath}/su-kien/uu-dai">Ưu đãi</a>
+                    <a href="${pageContext.request.contextPath}/su-kien/phim-hay">Phim Hay Tháng</a>
+                </div>
+            </div>
+
+            <!-- Dropdown 5: Rạp/Giá Vé -->
+            <div class="menu-item has-dropdown">
+                <a class="nav-link" href="#">Rạp/Giá Vé <span class="arrow">▾</span></a>
+                <div class="dropdown-pane simple-dropdown scrollable-dropdown">
+                    <c:forEach var="cinema" items="${headerCinemas}">
+                        <a href="${pageContext.request.contextPath}/showtimes?cinemaId=${fn:escapeXml(cinema.id)}">${fn:escapeXml(cinema.name)}</a>
+                    </c:forEach>
+                    <c:if test="${empty headerCinemas}">
+                        <span class="empty-dropdown-text">Chưa có chi nhánh rạp</span>
+                    </c:if>
+                </div>
+            </div>
+
+            <!-- 6. Rạp Đặc Biệt -->
+            <div class="menu-item">
+                <a class="nav-link" href="${pageContext.request.contextPath}/rap-dac-biet">Rạp Đặc Biệt</a>
+            </div>
+        </nav>
+
+        <!-- Trạng thái đăng nhập & Tìm kiếm -->
+        <div class="header-right">
+            <!-- Form Tìm kiếm -->
+            <form class="search-form-header" method="get" action="${pageContext.request.contextPath}/films">
+                <input type="search" name="q" placeholder="Tìm phim...">
+                <button type="submit" class="search-btn" aria-label="Tìm kiếm">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+            </form>
+
+            <!-- Trạng thái đăng nhập -->
+            <div class="auth-status-container" style="display: flex; align-items: center;">
+                <c:choose>
+                    <c:when test="${not empty sessionScope.currentUser}">
+                        <!-- MINIMALIST NOTIFICATION BELL -->
+                        <div class="header-notification-bell-wrapper">
+                            <button type="button" id="headerNotificationBellBtn" class="header-notification-bell-btn" onclick="toggleHeaderNotificationDropdown(event)" aria-label="Thông báo">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="bell-icon">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                </svg>
+                                <c:if test="${not sessionScope.currentUser.emailVerified}">
+                                    <span class="header-notification-dot" title="Có thông báo chưa xử lý"></span>
+                                </c:if>
+                            </button>
+
+                            <!-- NOTIFICATION DROPDOWN POPUP PANEL -->
+                            <div id="headerNotificationDropdown" class="header-notification-dropdown">
+                                <div class="notif-header">
+                                    <strong class="notif-header-title">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                        </svg>
+                                        Thông báo tài khoản
+                                    </strong>
+                                    <c:if test="${not sessionScope.currentUser.emailVerified}">
+                                        <span class="notif-count-badge">1 Cần xử lý</span>
+                                    </c:if>
+                                </div>
+                                <div class="notif-body">
+                                    <c:if test="${not sessionScope.currentUser.emailVerified}">
+                                        <div class="notif-item unverified-item">
+                                            <div class="notif-item-flex">
+                                                <div class="notif-item-icon">✉️</div>
+                                                <div class="notif-item-content">
+                                                    <strong class="notif-item-title">Xác thực Email tài khoản</strong>
+                                                    <p class="notif-item-desc">Email của bạn chưa được xác thực. Bạn nên xác thực để bảo vệ tài khoản và nhận vé.</p>
+                                                    <div class="notif-item-actions">
+                                                        <form method="post" action="${pageContext.request.contextPath}/resend-verification" style="margin: 0;">
+                                                            <%@ include file="/WEB-INF/views/shared/csrf.jspf" %>
+                                                            <button type="submit" class="notif-btn-primary">
+                                                                Xác thực ngay
+                                                            </button>
+                                                        </form>
+                                                        <a href="${pageContext.request.contextPath}/profile" class="notif-btn-secondary">
+                                                            Hồ sơ
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </c:if>
+                                    <c:if test="${sessionScope.currentUser.emailVerified}">
+                                        <div class="notif-empty-state">
+                                            <div class="notif-empty-icon">🎉</div>
+                                            <p class="notif-empty-text">Tài khoản của bạn đã được xác thực hoàn toàn.</p>
+                                        </div>
+                                    </c:if>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ISOLATED USER LOGGED INFO (HOVER ONLY TRIGGERS PROFILE MENU) -->
+                        <div class="user-logged-info">
+
+                            <a href="${pageContext.request.contextPath}/profile" class="user-avatar-link">
+                                <c:choose>
+                                    <c:when test="${not empty sessionScope.currentUser.avatar}">
+                                        <img class="user-avatar-img" src="${fn:escapeXml(cbf:assetUrl(pageContext.request.contextPath, sessionScope.currentUser.avatar))}" alt="Avatar">
+                                    </c:when>
+                                    <c:otherwise>
+                                        <div class="user-avatar-placeholder">
+                                            ${fn:escapeXml(sessionScope.currentUser.fullName.substring(0, 1).toUpperCase())}
+                                        </div>
+                                    </c:otherwise>
+                                </c:choose>
+                            </a>
+                            <div class="user-meta-header">
+                                <strong class="user-name">${fn:escapeXml(sessionScope.currentUser.fullName)}</strong>
+                                <span class="gstar-badge">⭐ ${fn:escapeXml(sessionScope.currentUser.loyaltyPoints)} Điểm</span>
+                            </div>
+                            <div class="user-menu-dropdown">
+                                <a href="${pageContext.request.contextPath}/member/loyalty" style="font-weight:700; color:#034EA2;">⭐ Thành Viên & Loyalty</a>
+                                <a href="${pageContext.request.contextPath}/orders/history">Vé của tôi</a>
+                                <a href="${pageContext.request.contextPath}/profile">Hồ sơ</a>
+                                <c:if test="${sessionScope.currentUser.role eq 'staff' or sessionScope.currentUser.role eq 'manager' or sessionScope.currentUser.role eq 'admin'}">
+                                    <a href="${pageContext.request.contextPath}/staff/checkin" style="font-weight:700; color:#FF7A00;">🎫 Quầy vé — Soát vé</a>
+                                </c:if>
+                                <c:if test="${sessionScope.currentUser.role eq 'manager' or sessionScope.currentUser.role eq 'admin'}">
+                                    <a href="${pageContext.request.contextPath}/admin/dashboard">Dashboard Manager</a>
+                                </c:if>
+                                <c:if test="${sessionScope.currentUser.role eq 'admin'}">
+                                    <a href="${pageContext.request.contextPath}/system/dashboard">System Admin</a>
+                                </c:if>
+                                <a href="${pageContext.request.contextPath}/logout" class="logout-link">Đăng xuất</a>
+                            </div>
+                        </div>
+                    </c:when>
+                    <c:otherwise>
+                        <div class="user-guest-info">
+                            <a href="${pageContext.request.contextPath}/login" class="login-text-link">Đăng Nhập</a>
+                        </div>
+                    </c:otherwise>
+                </c:choose>
+            </div>
+            
+            <button class="nav-toggle" type="button" data-nav-toggle aria-label="Mở menu" aria-expanded="false">
+                <span></span>
+            </button>
+        </div>
+    </div>
+</header>
+<div class="nav-overlay" data-nav-overlay></div>
+
+<script>
+    function toggleHeaderNotificationDropdown(e) {
+        if (e) e.stopPropagation();
+        var dropdown = document.getElementById('headerNotificationDropdown');
+        if (dropdown) {
+            var isVisible = dropdown.style.display === 'block';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+        }
+    }
+    document.addEventListener('click', function(e) {
+        var dropdown = document.getElementById('headerNotificationDropdown');
+        var btn = document.getElementById('headerNotificationBellBtn');
+        if (dropdown && dropdown.style.display === 'block') {
+            if (!dropdown.contains(e.target) && (!btn || !btn.contains(e.target))) {
+                dropdown.style.display = 'none';
+            }
+        }
+    });
+</script>

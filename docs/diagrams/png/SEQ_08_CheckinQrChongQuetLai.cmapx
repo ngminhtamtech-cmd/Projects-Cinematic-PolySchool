@@ -1,0 +1,8 @@
+<map id="SEQ_08_CheckinQrChongQuetLai_map" name="SEQ_08_CheckinQrChongQuetLai_map">
+<area shape="rect" id="id1" href="Đúng" title="Đúng" alt="" coords="25,624,66,638"/>
+<area shape="rect" id="id2" href="Chữ" title="Chữ" alt="" coords="15,418,63,432"/>
+<area shape="rect" id="id3" href="Ngoài" title="Ngoài" alt="" coords="95,546,182,560"/>
+<area shape="rect" id="id4" href="Chữ" title="Chữ" alt="" coords="85,310,220,323"/>
+<area shape="rect" id="id5" href="CheckinStatus" title="CheckinStatus" alt="" coords="105,848,244,861"/>
+<area shape="rect" id="id6" href="Chưa" title="Chưa" alt="" coords="35,1019,273,1033"/>
+</map>

@@ -1,0 +1,56 @@
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<footer class="site-footer site-footer-mini">
+    <div class="container">
+        <div class="footer-mini-row">
+            <div class="footer-mini-brand">
+                <a class="brand" href="${pageContext.request.contextPath}/home" aria-label="CineBook Trang chủ">
+                    <svg class="brand-logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="32" height="32" rx="9" fill="url(#footerBrandGrad)"/>
+                        <path d="M10 10.5C10 9.67157 10.6716 9 11.5 9H20.5C21.3284 9 22 9.67157 22 10.5V21.5C22 22.3284 21.3284 23 20.5 23H11.5C10.6716 23 10 22.3284 10 21.5V10.5Z" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+                        <path d="M14.5 13L19 16L14.5 19V13Z" fill="white"/>
+                        <defs>
+                            <linearGradient id="footerBrandGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#FF7A00"/>
+                                <stop offset="1" stop-color="#EA580C"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <span class="brand-title">Cine<span class="accent">Book</span></span>
+                </a>
+            </div>
+
+            <nav class="footer-mini-nav" aria-label="Điều hướng cuối trang">
+                <a href="${pageContext.request.contextPath}/ve-chung-toi">Về Chúng Tôi</a>
+                <span class="dot">•</span>
+                <a href="${pageContext.request.contextPath}/thoa-thuan-su-dung">Thỏa Thuận Sử Dụng</a>
+                <span class="dot">•</span>
+                <a href="${pageContext.request.contextPath}/rap-dac-biet">Hệ Thống Rạp</a>
+                <span class="dot">•</span>
+                <a href="${pageContext.request.contextPath}/su-kien/uu-dai">Tin Khuyến Mãi</a>
+                <span class="dot">•</span>
+                <a href="${pageContext.request.contextPath}/refund-policy">Điều kiện hoàn tiền</a>
+                <span class="dot">•</span>
+                <a href="${pageContext.request.contextPath}/orders/history">Lịch Sử Đặt Vé</a>
+                <span class="dot">•</span>
+                <a href="${pageContext.request.contextPath}/profile">Góp Ý / Hỗ Trợ</a>
+            </nav>
+
+            <div class="footer-mini-socials">
+                <a href="#" class="social-btn social-btn-facebook" aria-label="Facebook" title="Facebook">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H7.5v-3H10V9.69c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.23.19 2.23.19v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.45 3h-2.33v6.8c4.56-.93 8-4.96 8-9.8z"/></svg>
+                </a>
+                <a href="#" class="social-btn social-btn-youtube" aria-label="YouTube" title="YouTube">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                </a>
+                <a href="#" class="social-btn social-btn-instagram" aria-label="Instagram" title="Instagram">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                </a>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <span>&copy; 2026 CineBook. Rebuilt with Galaxy Cinema guidelines. G STAR Member Network.</span>
+            <span>Ngôn ngữ: Tiếng Việt (Vietnamese)</span>
+        </div>
+    </div>
+</footer>

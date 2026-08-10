@@ -1,0 +1,117 @@
+' =============================================================================
+'  CineBook — State Machine Diagram: Đơn hàng (Order) · Thanh toán (Payment) ·
+'  Ghế suất chiếu (ShowtimeSeat)
+'  Nguồn xác thực: database/schema.sql (CHECK constraint gốc), fix02_refund.sql
+'  (PaymentStatus += cancelled, refunded), fix22_orders_status_constraint.sql
+'  (OrderStatus chuẩn hoá: created/pending/confirmed/cancelled/completed/redeemed),
+'  fix00_create_missing_tables_cinebookdb.sql (CheckinStatus),
+'  alter_seats_add_maintenance.sql (ShowtimeSeats.Status += maintenance),
+'  fix29_booking_command_views.sql (view vw_OrderLifecycle — nguồn CHÍNH THỨC
+'  của state hợp thành LifecycleState dùng cho sơ đồ Order bên dưới),
+'  service/BookingService, service/AdminService, service/HoldSweeper,
+'  service/BookingStateMachine (báo cáo khảo sát Service/DAO).
+'
+'  Render: java -jar tools/plantuml.jar -tsvg -charset UTF-8 STATE_01_Booking.puml
+'          java -jar tools/plantuml.jar -tpng -charset UTF-8 -DPLANTUML_LIMIT_SIZE=16384 STATE_01_Booking.puml
+' =============================================================================
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  STATE 1 — VÒNG ĐỜI ĐƠN HÀNG (composite state, nguồn: vw_OrderLifecycle)   ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml STATE_01_DonHang
+title State Machine — Vòng đời Đơn hàng (Order LifecycleState)\n<size:11>Nguồn: dbo.vw_OrderLifecycle (fix29_booking_command_views.sql) — trạng thái hợp thành từ OrderStatus + PaymentStatus + PaymentMethod</size>
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+
+[*] --> DRAFT_HELD : BookingService.createDraftOrder()\n(OrderStatus=created/pending, PaymentStatus=pending)
+
+DRAFT_HELD --> PAID_CONFIRMED : payOrder() thành công\n[phương thức online]\n(OrderStatus=confirmed, PaymentStatus=paid)
+DRAFT_HELD --> PAYMENT_FAILED_RETRYABLE : payOrder() thất bại\n(SimulatedGateway trả lỗi)\n(PaymentStatus=failed)
+DRAFT_HELD --> COUNTER_AWAITING_PAYMENT : payOrder(method=counter)\n(OrderStatus=confirmed,\nPaymentStatus=pending)
+DRAFT_HELD --> CANCELLED_UNPAID : cancelUserDraftOrder() /\nHoldSweeper.cancelOrphanDraftOrders()\n[hold hết hạn / bỏ dở]
+
+PAYMENT_FAILED_RETRYABLE --> DRAFT_HELD : thử thanh toán lại\n[còn hạn giữ ghế]
+PAYMENT_FAILED_RETRYABLE --> CANCELLED_UNPAID : HoldSweeper.releaseExpiredHolds()\n[hết hạn giữ ghế]
+
+COUNTER_AWAITING_PAYMENT --> PAID_CONFIRMED : AdminService.markCounterOrderPaid()\n(StaffService.collectPayment tại quầy)
+COUNTER_AWAITING_PAYMENT --> CANCELLED_UNPAID : HoldSweeper.cancelExpiredCounterOrders()\n[quá CounterExpiresAt]
+
+PAID_CONFIRMED --> PAID_REDEEMED : AdminService.redeemTicket()\n(StaffService.checkIn — soát vé QR)\n(OrderStatus=redeemed)
+PAID_CONFIRMED --> FULLY_REFUNDED : AdminService.refundOrder()\n[Manager/Admin duyệt hoàn tiền]\n(OrderStatus=cancelled, PaymentStatus=refunded)
+
+PAID_REDEEMED --> [*] : trạng thái cuối (vé đã sử dụng)
+CANCELLED_UNPAID --> [*] : trạng thái cuối (không thu tiền)
+FULLY_REFUNDED --> [*] : trạng thái cuối (đã hoàn tiền,\ntối đa 1 lần/đơn — RefundTransactions UNIQUE)
+
+state COMPLETED_LEGACY : OrderStatus=completed, PaymentStatus=paid\n(giá trị lịch sử — CK_Orders_OrderStatus vẫn cho phép\nnhưng luồng nghiệp vụ hiện hành không còn gán mới)
+[*] --> COMPLETED_LEGACY : dữ liệu cũ (trước fix22)
+
+legend right
+  |= Ghi chú |
+  | CheckinStatus (cột độc lập trên Orders) đi kèm: not_checked_in → checked_in,
+  chuyển 'checked_in' khi redeemTicket() thành công, song song với
+  PAID_CONFIRMED → PAID_REDEEMED. |
+  | Mọi transition được BookingStateMachine kiểm tra hợp lệ và
+  BookingTransitionService ghi nhận idempotent vào BookingCommandExecutions +
+  BookingStateTransitions (khoá theo ActorScope+CommandType+IdempotencyKey). |
+endlegend
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  STATE 2 — PaymentStatus (cột nguyên thuỷ trên Orders)                     ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml STATE_02_ThanhToan
+title State Machine — Orders.PaymentStatus\n<size:11>Nguồn: CK_Orders_PaymentStatus (fix02_refund.sql) — CHECK (PaymentStatus IN ('pending','paid','failed','cancelled','refunded'))</size>
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+
+[*] --> pending : tạo đơn nháp (createDraftOrder)
+
+pending --> paid : payOrder() thành công\n(online) hoặc markCounterOrderPaid()\n(quầy)
+pending --> failed : SimulatedGateway trả lỗi\n(payOrder thất bại)
+pending --> cancelled : hold/đơn hết hạn\n(HoldSweeper) hoặc user tự huỷ
+
+failed --> pending : thử lại thanh toán\n[còn hạn giữ ghế]
+failed --> cancelled : hết hạn giữ ghế\n(HoldSweeper.releaseExpiredHolds)
+
+paid --> refunded : AdminService.refundOrder()\n[duyệt hoàn tiền — tối đa 1 lần/đơn]
+
+paid --> [*]
+cancelled --> [*]
+refunded --> [*]
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  STATE 3 — ShowtimeSeats.Status (trạng thái ghế theo suất chiếu)           ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml STATE_03_GheSuatChieu
+title State Machine — ShowtimeSeats.Status\n<size:11>Nguồn: CK_ShowtimeSeats_Status (alter_seats_add_maintenance.sql) — CHECK (Status IN ('available','held','booked','maintenance'))</size>
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+
+[*] --> available : ShowtimeSeat được tạo khi\ntạo Showtime (mirror Seats đang active)
+
+available --> held : BookingService.createDraftOrder()\n→ ShowtimeSeatDAO.markHeld()\n(HeldByUserId, HeldUntil = now+holdMinutes())
+held --> available : hết hạn giữ chỗ\n(HoldSweeper.releaseExpiredHolds)\nhoặc user huỷ giữ ghế (cancelUserDraftOrder)
+held --> booked : payOrder() thanh toán thành công\n→ markBooked() (ClaimedByOrderId gán)\n[đơn confirmed/paid hoặc counter awaiting]
+
+booked --> available : AdminService.refundOrder() /\ncancelOrder() [đơn bị huỷ/hoàn sau\nkhi đã giữ chỗ thành công]
+
+available --> maintenance : Manager/Admin đánh dấu ghế hỏng\n(ngoài luồng đặt vé — thao tác thủ công)
+maintenance --> available : Manager/Admin gỡ đánh dấu bảo trì
+
+note bottom of maintenance
+  Độc lập với vòng đời hold→booked: ghế đang
+  maintenance bị loại khỏi sơ đồ ghế bán được (không cho
+  khách chọn) nhưng KHÔNG có transition trực tiếp từ
+  held/booked sang maintenance trong nghiệp vụ hiện hành.
+end note
+@enduml

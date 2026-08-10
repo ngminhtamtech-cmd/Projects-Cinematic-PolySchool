@@ -1,0 +1,245 @@
+' =============================================================================
+'  19. Activity Diagram: Đặt vé xem phim online
+'
+'  Gộp trọn vòng đời một lượt đặt vé: chọn suất -> giữ ghế -> thanh toán ->
+'  nhận vé, kèm nhánh song song của tiến trình nền thu hồi ghế quá hạn.
+'
+'  Nguồn đối chiếu (đọc trực tiếp mã nguồn, không suy đoán):
+'    controller/booking/OrderServlet.java:116 / 157  createOrder / payOrder
+'    service/BookingService.java:248                 createDraftOrder
+'    service/BookingService.java:414                 payOrder
+'    service/BookingService.java:699                 ensureDraftQuotaAvailable
+'    service/ShowtimeLifecycleLock.java              sp_getapplock theo suất chiếu
+'    dao/ShowtimeSeatDAO.java                        lockSeats / markHeld / markBooked /
+'                                                    countActiveHoldsByUser
+'    service/payment/SimulatedGateway.java           cổng thanh toán MÔ PHỎNG
+'    service/LoyaltyService.java:130                 addPointsOnPayment
+'    service/HoldSweeper.java:134                    sweepOnce (30 giây/vòng)
+'    SystemSettings: booking.cutoffMinutes=15 · seat_hold_minutes=10 ·
+'                    booking.maxOpenDraftsPerShowtime=3 · counter.expiryMinutes=30
+'
+'  BỐ CỤC — 4 swimlane (thêm lane cổng thanh toán và lane tiến trình nền, vì cả hai
+'  đều là tác nhân THẬT ngoài luồng người dùng). Nhánh lỗi kết thúc tại chính lane
+'  phát hiện ra nó, không nhảy lane để hiển thị thông báo.
+'
+'  Render:
+'    java -jar tools/plantuml/plantuml.jar -tsvg -charset UTF-8 -o ../svg <file>
+'    java -jar tools/plantuml/plantuml.jar -tpng -charset UTF-8 -o ../png --skinparam dpi=450 <file>
+' =============================================================================
+@startuml 19. Activity Diagram – Đặt vé xem phim online
+title 19. ACTIVITY DIAGRAM – ĐẶT VÉ XEM PHIM ONLINE
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+  DiamondBackgroundColor white
+}
+
+|Thành viên|
+start
+:duyệt phim, chọn suất chiếu;
+:xem sơ đồ ghế;
+
+|Hệ thống (BookingService)|
+if (Đã đăng nhập?) then ([Chưa])
+  :AuthFilter chuyển hướng /login\nkèm returnUrl để quay lại đúng trang;
+  |Thành viên|
+  :đăng nhập rồi tiếp tục;
+  |Hệ thống (BookingService)|
+else ([Rồi])
+endif
+
+|Thành viên|
+:chọn ghế, chọn combo,\nnhập mã khuyến mãi (tuỳ chọn);
+:POST /orders kèm X-CSRF-Token\nvà X-Idempotency-Key;
+
+|Hệ thống (BookingService)|
+if (Có X-Idempotency-Key?) then ([Không])
+  :400 IDEMPOTENCY_KEY_REQUIRED;
+  stop
+else ([Có])
+endif
+
+if (Khoá này đã dùng rồi\nVÀ đúng chủ đơn?) then ([Đã dùng])
+  :trả lại đơn cũ, replayed = true;
+  note right
+    Khoá phát lại phải gắn với CHỦ ĐƠN. Lệch chủ đơn
+    trả 409 trung tính — bản cũ trả thẳng đơn tìm được
+    nên lộ orderId và ticketCode thật của người khác.
+  end note
+  stop
+else ([Chưa dùng])
+endif
+
+|Cơ sở dữ liệu|
+:BEGIN TRANSACTION;
+:ShowtimeLifecycleLock.acquire(showtimeId)\nsp_getapplock Exclusive/Transaction;
+note right
+  THỨ TỰ KHOÁ THỐNG NHẤT ở cả tạo đơn lẫn thanh toán:
+  ShowtimeLifecycleLock → Orders → ShowtimeSeats.
+  Hai đường đi cùng chiều nên không tạo được vòng chờ chéo.
+end note
+
+:kiểm cutoff TRONG SQL:\nDATEADD(MINUTE, 15, GETDATE()) <= StartTime;
+if (Còn trước cutoff và\nSaleStatus = 'ON_SALE'?) then ([Không])
+  :ROLLBACK;
+  :409 "Suất chiếu không còn nhận đặt vé.";
+  stop
+else ([Còn])
+endif
+
+:SELECT COUNT(*) FROM Orders WITH (UPDLOCK)\nWHERE UserId=? AND ShowtimeId=?\n  AND OrderStatus='created';
+if (Số đơn giữ chỗ đang mở\n>= 3?) then ([Vượt trần])
+  :ROLLBACK;
+  :409 "Bạn đang có N đơn giữ chỗ\nchưa thanh toán cho suất này.";
+  stop
+else ([Còn quota])
+endif
+
+:releaseExpiredHolds(showtimeId);
+:lockSeats — SELECT ... FROM ShowtimeSeats\nWITH (UPDLOCK, ROWLOCK);
+
+if (Ghế còn trống cho\nngười dùng này?) then ([Đã bị giữ/đặt])
+  :ROLLBACK;
+  :409 "Ghế <mã> đã được giữ\nhoặc đặt bởi người khác.";
+  stop
+else ([Còn trống])
+endif
+
+if (Có ghế đang bảo trì?) then ([Có])
+  :ROLLBACK;
+  :400 "Ghế <mã> đang bảo trì,\nkhông thể đặt vé.";
+  stop
+else ([Không])
+endif
+
+if (Ghế đôi chọn đủ cả cặp?) then ([Chỉ chọn một nửa])
+  :ROLLBACK;
+  :400 "Ghế đôi là đơn vị đặt chỗ\nkhông thể tách rời.";
+  stop
+else ([Đủ cặp hoặc không có ghế đôi])
+endif
+
+:tính seatSubtotal + comboSubtotal,\náp khuyến mãi → totalAmount;
+:INSERT INTO Orders\n(OrderStatus='created', PaymentStatus='pending');
+:INSERT INTO OrderSeats, OrderComboFoods;
+:UPDATE ShowtimeSeats SET Status='held',\nHeldUntil = DATEADD(MINUTE, 10, GETDATE());
+:COMMIT;
+
+|Thành viên|
+:nhận đơn giữ chỗ\n(trạng thái DRAFT_HELD),\nđồng hồ đếm ngược 10 phút;
+:chọn phương thức thanh toán;
+:POST /orders/{id}/pay;
+
+|Hệ thống (BookingService)|
+|Cơ sở dữ liệu|
+:BEGIN TRANSACTION;
+:ShowtimeLifecycleLock.acquire(showtimeId);
+:SELECT ... FROM Orders WITH (UPDLOCK)\nWHERE Id=? AND UserId=?\n  AND OrderStatus='created';
+
+:countActiveHoldsByUser —\nSELECT COUNT(*) FROM ShowtimeSeats\nWHERE Status='held' AND HeldByUserId=?\n  AND ClaimedByOrderId=?\n  AND HeldUntil > GETDATE();
+note right
+  Hạn giữ ghế kiểm bằng GETDATE() NGAY TRONG SQL.
+  Vòng lặp Java chỉ thấy Status='held' nên một hold
+  đã quá hạn mà sweeper chưa kịp thu vẫn lọt qua —
+  thành công hay không phụ thuộc vào chạy đua với
+  sweeper (CB-ISS-005).
+end note
+
+if (Còn đủ ghế giữ hợp lệ?) then ([Hết hạn hoặc bị đổi])
+  :ROLLBACK;
+  :409 "Giữ ghế đã hết hạn hoặc bị thay đổi.\nVui lòng đặt lại.";
+  stop
+else ([Còn hạn])
+endif
+
+|Hệ thống (BookingService)|
+if (Phương thức thanh toán?) then ([Thẻ — mô phỏng])
+
+  |Cổng thanh toán mô phỏng|
+  :SimulatedGateway.createPayment(order);
+  if (Cổng chấp nhận?) then ([Từ chối])
+    |Cơ sở dữ liệu|
+    :ROLLBACK;
+    :400 — trả thông báo lỗi từ cổng;
+    stop
+  else ([Chấp nhận])
+  endif
+
+  |Cơ sở dữ liệu|
+  :UPDATE Orders SET OrderStatus='confirmed',\nPaymentStatus='paid', TicketCode=?,\nTransactionId=?;
+
+else ([Tại quầy])
+
+  |Cơ sở dữ liệu|
+  :UPDATE Orders SET OrderStatus='confirmed',\nPaymentStatus='pending', TicketCode=?,\nCounterExpiresAt=DATEADD(MINUTE, 30, GETDATE());
+  note right
+    Đơn tại quầy giữ PaymentStatus='pending' cho tới
+    khi nhân viên thu tiền. Trước bước đó vé KHÔNG
+    check-in được và khách CHƯA được cộng điểm.
+  end note
+endif
+
+|Cơ sở dữ liệu|
+:UPDATE ShowtimeSeats SET Status='booked';
+if (Có áp mã khuyến mãi?) then ([Có])
+  :UPDATE Promotions SET UsedCount=UsedCount+1;
+  :INSERT INTO PromotionUsage;
+else ([Không])
+endif
+
+if (PaymentStatus = 'paid'?) then ([Có])
+  :LoyaltyService.addPointsOnPayment —\nINSERT PointTransactions\n(IdempotencyKey='EARN_PURCHASE:{orderId}');
+  :UPDATE Users SET LoyaltyPoints, TotalSpent,\nLifetimeEarnedPoints; xét nâng hạng;
+else ([Chờ thu tiền tại quầy])
+endif
+:COMMIT;
+
+|Hệ thống (BookingService)|
+:ghi AuditLogs (Action='PAY_ORDER')\nkèm ảnh chụp trạng thái trước/sau;
+if (PaymentStatus = 'paid'?) then ([Có])
+  fork
+    :InvoiceService.issueSale(orderId);
+  fork again
+    :EmailService.sendTicket(...)\n— bất đồng bộ;
+  end fork
+  note right
+    Xuất hoá đơn và gửi mail nằm NGOÀI transaction,
+    chạy sau commit: một lỗi SMTP không được phép
+    làm hỏng giao dịch đã thu tiền.
+  end note
+else ([Chưa thu tiền])
+endif
+
+|Thành viên|
+:nhận vé điện tử và mã QR\n(PAID_CONFIRMED hoặc\n COUNTER_AWAITING_PAYMENT);
+stop
+
+|Tiến trình nền (HoldSweeper)|
+start
+:chờ 30 giây;
+if (SystemSettings sweeper.enabled?) then ([Tắt])
+  :bỏ vòng này;
+  stop
+else ([Bật])
+endif
+if (Lấy được khoá?) then ([Đang bị khoá])
+  :bỏ vòng, thử lại sau 30 giây;
+  note right
+    Sweeper là việc nền: gặp khoá thì nhường, không
+    bao giờ chặn luồng đặt vé của người dùng.
+  end note
+  stop
+else ([Lấy được])
+endif
+:thu hồi hold quá hạn\n(HeldUntil <= GETDATE())\n→ ShowtimeSeats.Status='available';
+:huỷ đơn tại quầy quá CounterExpiresAt;
+:huỷ đơn nháp mồ côi\n(CancelReason='auto-expired')\n→ CANCELLED_UNPAID;
+:dọn LoginAttempts cũ hơn 90 ngày;
+stop
+
+@enduml

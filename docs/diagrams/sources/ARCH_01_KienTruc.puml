@@ -1,0 +1,102 @@
+' =============================================================================
+'  CineBook — Sơ đồ Kiến trúc Hệ thống
+'  Nguồn gốc: back-up/back-up/ARCHITECTURE_DIAGRAM.puml (khảo sát trực tiếp
+'  package src/main/java/.../phim/, web.xml, config/AppContextListener.java,
+'  config/DBConnection.java, web/lib/api-server.ts,
+'  web/app/api/proxy/[...path]/route.ts).
+'  CẬP NHẬT trong bản này (đối chiếu lại web.xml qua agent khảo sát 2026, xem
+'  docs/diagrams/registry.md mục nguồn): filter chain THỰC TẾ có 7 filter, bản
+'  gốc liệt kê thiếu CharacterEncodingFilter (org.apache.catalina.filters.
+'  SetCharacterEncodingFilter, thư viện Tomcat) nằm giữa RequestContextFilter
+'  và EncodingFilter — đã bổ sung cho khớp web.xml. Ngoài ra CsrfFilter có
+'  package thực tế là api.CsrfFilter (không phải filter.CsrfFilter) — đã sửa.
+'
+'  Render: java -jar tools/plantuml.jar -tsvg -charset UTF-8 ARCH_01_KienTruc.puml
+'          java -jar tools/plantuml.jar -tpng -charset UTF-8 -DPLANTUML_LIMIT_SIZE=16384 ARCH_01_KienTruc.puml
+' =============================================================================
+
+@startuml ARCH_01_KienTrucHeThong
+title Sơ đồ Kiến trúc Hệ thống — CineBook
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam rectangle {
+  RoundCorner 10
+  BorderThickness 1
+}
+skinparam ArrowThickness 1
+
+rectangle "TRÌNH DUYỆT NGƯỜI DÙNG" as Client {
+  rectangle "Trình duyệt\n(JSP + JSTL + JS thuần)\n— giao diện chính, 62 file JSP/JSPF" as BrowserJSP
+  rectangle "Trình duyệt\n(Next.js — /, /phim, /phim/[id], /dat-ve)\n— đang xây GĐ1" as BrowserNext
+}
+
+rectangle "TẦNG NEXT.JS 16 (web/) — Node.js, port 3000" as NextLayer {
+  rectangle "Server Component\nlib/api-server.ts\n(forward cookie JSESSIONID/CSRF)" as ApiServer
+  rectangle "Client Component\nlib/api-client.ts" as ApiClient
+  rectangle "BFF Proxy\napp/api/proxy/[...path]/route.ts\n(rewrite Set-Cookie Path=/,\ngetSetCookie() tránh gộp cookie)" as Proxy
+  rectangle "/dat-ve → xác thực showtimeId\nqua booking-eligibility rồi\nredirect sang JSP (handoff)" as Handoff
+}
+
+rectangle "TẦNG TOMCAT 9 — WAR Website-ban-ve-xem-phim (javax.servlet, Jakarta EE 8)" as TomcatLayer {
+
+  rectangle "FILTER CHAIN (7 filter, map /*, đúng thứ tự khai báo web.xml)\n1. SecurityHeaderFilter — header bảo mật (CSP, X-Frame-Options...)\n2. RequestContextFilter — ghi IP/User-Agent vào ThreadLocal\n3. CharacterEncodingFilter (Tomcat SetCharacterEncodingFilter) — ép UTF-8 request\n4. EncodingFilter — ép UTF-8 request + response\n5. HeaderDataFilter — nạp sẵn film/cinema cho menu JSP (cache 60s)\n6. AuthFilter — role guest<member<staff<manager<admin\n   + AccountStateGuard (khoá/xoá/đổi role)\n7. api.CsrfFilter — synchronizer token, header X-CSRF-Token / param _csrf" as Filters
+
+  rectangle "SERVLET (khai báo trong web.xml, không @WebServlet)" as ServletLayer {
+    rectangle "Controller phục vụ JSP (controller/*)\nHomeServlet, FilmServlet, CinemaServlet, ShowtimeServlet,\nBookingPageServlet, OrderServlet, TicketQrServlet, ProfileServlet,\nInvoiceServlet, AuthServlet, AppealServlet,\ncontroller/admin/*, controller/staff/*, controller/system/*" as JspServlets
+    rectangle "REST API /api/v1/*\nkế thừa BaseApiServlet\nAuthApiServlet, FilmApiServlet, ShowtimeApiServlet,\nOrderApiServlet, StaffApiServlet, CatalogApiServlet, HealthApiServlet\n— Envelope {data,meta} / {error}\n— DTO qua api/dto/Dtos.java + DtoMapper" as ApiServlets
+  }
+
+  rectangle "SERVICE (nghiệp vụ thuần Java, new trực tiếp — không DI framework)" as ServiceLayer {
+    rectangle "BookingService — createDraftOrder,\npayOrder, resolvePromotion, cancelUserDraftOrder\n+ BookingStateMachine/BookingTransitionService/\nBookingCommandStore (transition kernel dùng chung)" as SvcBooking
+    rectangle "AdminService (~7600 dòng)\nCRUD phim/rạp/phòng/suất chiếu,\nbáo cáo doanh thu, redeemTicket, refundOrder\n(nhiều hàm tự viết SQL trực tiếp qua DBConnection,\nkhông qua DAO)" as SvcAdmin
+    rectangle "LoginThrottleService, AccountStateGuard,\nRefreshTokenService, PasswordResetService,\nLoyaltyService, EmailService, InvoiceService,\nStaffService, PersonalDataService, PolicyDocumentService" as SvcOther
+  }
+
+  rectangle "DAO — JDBC thuần (KHÔNG JPA/Hibernate)\n16 interface (UserDAO, OrderDAO, FilmDAO, ShowtimeDAO,\nShowtimeSeatDAO, ComboFoodDAO, PromotionDAO...) +\nJdbc*Impl tương ứng, PreparedStatement thủ công" as DaoLayer
+
+  rectangle "TIẾN TRÌNH NỀN (khởi động ở AppContextListener)\nHoldSweeper — sweepOnce() mỗi 30s (initial delay 20s):\nreleaseExpiredHolds, cancelExpiredCounterOrders,\ncancelOrphanDraftOrders, cleanupLoginAttempts (>90 ngày)\nEmailService — gửi async (mail.mode=logfile|smtp)" as BgJobs
+}
+
+database "SQL Server\nCineBookDB (38 bảng)\nHikariCP pool 10–20\n(lazy-init trong DBConnection)" as SqlServer
+
+BrowserJSP --> Filters : HTTP (session JSESSIONID)
+BrowserNext --> ApiClient
+ApiClient --> Proxy
+Proxy --> Filters : forward + rewrite cookie
+ApiServer --> Filters : gọi thẳng /api/v1 (SSR)
+BrowserNext ..> Handoff : /dat-ve?showtimeId=
+Handoff --> Filters : redirect /booking?showtimeId=\n(tiếp tục trên JSP/Tomcat)
+
+Filters --> JspServlets
+Filters --> ApiServlets
+
+JspServlets --> SvcBooking
+JspServlets --> SvcAdmin
+JspServlets --> SvcOther
+JspServlets ..> DaoLayer : Catalog công khai\n(Film/Cinema/Showtime — gọi thẳng DAO,\nkhông qua Service riêng)
+ApiServlets --> SvcBooking
+ApiServlets --> SvcOther
+ApiServlets ..> DaoLayer : CatalogApiServlet, FilmApiServlet,\nShowtimeApiServlet (đọc công khai)
+
+SvcBooking --> DaoLayer
+SvcAdmin --> DaoLayer
+SvcOther --> DaoLayer
+
+DaoLayer --> SqlServer : JDBC (PreparedStatement)
+SvcAdmin ..> SqlServer : SQL trực tiếp qua DBConnection\n(Film/Cinema/Room/Showtime/Promotion/\nCombo/Report/Audit — không qua DAO)
+BgJobs --> DaoLayer
+
+JspServlets ..> BrowserJSP : forward JSP (WEB-INF/views/*.jsp)
+ApiServlets ..> ApiClient : JSON {data,meta} / {error}
+ApiServlets ..> ApiServer : JSON (SSR fetch)
+
+note bottom of SqlServer
+  Giờ nghiệp vụ dùng GETDATE() trong SQL cho các
+  chốt thật (HeldUntil, cutoff đặt vé, redeemTicket);
+  BusinessClock.now() (đo lệch GETDATE() mỗi 60s)
+  chỉ dùng phía Java, không dùng LocalDateTime.now()
+  cho mốc thời gian nghiệp vụ.
+end note
+@enduml

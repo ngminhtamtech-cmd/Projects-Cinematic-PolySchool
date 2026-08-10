@@ -1,0 +1,230 @@
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<!-- TRAILER POPUP MODAL COMPONENT -->
+<style>
+    .trailer-modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: rgba(0, 0, 0, 0.92);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .trailer-modal-overlay.is-active {
+        opacity: 1;
+        visibility: visible;
+    }
+    .trailer-modal-container {
+        position: relative;
+        width: 100%;
+        max-width: 960px;
+        background: #090d16;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95), 0 0 30px rgba(0, 0, 0, 0.6);
+        transform: scale(0.94);
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .trailer-modal-overlay.is-active .trailer-modal-container {
+        transform: scale(1);
+    }
+    .trailer-external-btn {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        z-index: 20;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        color: #f1f5f9;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 20px;
+        text-decoration: none;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .trailer-external-btn:hover {
+        background: #FF7A00;
+        border-color: #FF7A00;
+        color: #ffffff;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(255, 122, 0, 0.35);
+    }
+    .trailer-modal-close {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        z-index: 20;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        color: #f8fafc;
+        font-size: 22px;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        line-height: 1;
+        padding: 0;
+    }
+    .trailer-modal-close:hover {
+        background: #ef4444;
+        border-color: #ef4444;
+        color: #ffffff;
+        transform: scale(1.08);
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+    }
+    .trailer-iframe-wrapper {
+        position: relative;
+        padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+        height: 0;
+        overflow: hidden;
+        background: #000000;
+    }
+    .trailer-iframe-wrapper iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+    }
+</style>
+
+<div id="trailerModal" class="trailer-modal-overlay" aria-hidden="true">
+    <div class="trailer-modal-container">
+        <!-- Hidden title container for backward JS compatibility -->
+        <span id="trailerModalTitle" style="display:none;"></span>
+        
+        <!-- Floating YouTube Pill Button -->
+        <a id="trailerExternalLink" href="#" target="_blank" rel="noopener noreferrer" class="trailer-external-btn" title="Xem trực tiếp trên YouTube">
+            <span>Mở trên YouTube</span>
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+        
+        <!-- Floating Close Button -->
+        <button type="button" class="trailer-modal-close" onclick="closeTrailerModal()" title="Đóng trailer">&times;</button>
+        
+        <!-- Video Iframe Container -->
+        <div class="trailer-iframe-wrapper">
+            <iframe id="trailerIframe" 
+                    src="" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    referrerpolicy="strict-origin-when-cross-origin" 
+                    allowfullscreen>
+            </iframe>
+        </div>
+    </div>
+</div>
+
+<script>
+    function extractYouTubeVideoId(url) {
+        if (!url) return '';
+        var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        var match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : '';
+    }
+
+    function parseYouTubeEmbedUrl(url) {
+        if (!url) return '';
+        var videoId = extractYouTubeVideoId(url);
+        var origin = encodeURIComponent(window.location.origin);
+        
+        if (videoId) {
+            return 'https://www.youtube-nocookie.com/embed/' + videoId + '?autoplay=1&rel=0&enablejsapi=1&origin=' + origin;
+        }
+        
+        if (url.indexOf('youtube') !== -1 || url.indexOf('youtu.be') !== -1) {
+            var cleanUrl = url.replace('youtube.com', 'youtube-nocookie.com');
+            var joiner = cleanUrl.indexOf('?') === -1 ? '?' : '&';
+            return cleanUrl + joiner + 'autoplay=1&rel=0&enablejsapi=1&origin=' + origin;
+        }
+        
+        return url;
+    }
+
+    function openTrailerModal(trailerUrl, movieTitle) {
+        var modal = document.getElementById('trailerModal');
+        var iframe = document.getElementById('trailerIframe');
+        var titleEl = document.getElementById('trailerModalTitle');
+        var extLink = document.getElementById('trailerExternalLink');
+
+        if (!trailerUrl || trailerUrl.trim() === '') {
+            alert('Chưa có link trailer cho phim này!');
+            return;
+        }
+
+        if (titleEl) {
+            titleEl.textContent = '🎬 Trailer: ' + (movieTitle || 'Phim CineBook');
+        }
+
+        if (extLink) {
+            extLink.href = trailerUrl;
+        }
+
+        var embedUrl = parseYouTubeEmbedUrl(trailerUrl);
+        iframe.src = embedUrl;
+        modal.classList.add('is-active');
+        document.body.style.overflow = 'hidden';
+        window.dispatchEvent(new CustomEvent('trailerModalOpen'));
+    }
+
+    function closeTrailerModal() {
+        var modal = document.getElementById('trailerModal');
+        var iframe = document.getElementById('trailerIframe');
+
+        if (iframe) iframe.src = '';
+        if (modal) modal.classList.remove('is-active');
+        document.body.style.overflow = '';
+        window.dispatchEvent(new CustomEvent('trailerModalClose'));
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var modal = document.getElementById('trailerModal');
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeTrailerModal();
+                }
+            });
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeTrailerModal();
+            }
+        });
+
+        // Global Event listener for trailer buttons
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('[data-trailer-url], .btn-watch-trailer');
+            if (btn) {
+                var url = btn.getAttribute('data-trailer-url') || btn.getAttribute('href');
+                var title = btn.getAttribute('data-movie-title') || btn.getAttribute('data-title');
+                if (url && (url.indexOf('http') === 0 || url.indexOf('//') === 0 || url.indexOf('https') === 0)) {
+                    e.preventDefault();
+                    openTrailerModal(url, title);
+                }
+            }
+        });
+    });
+</script>

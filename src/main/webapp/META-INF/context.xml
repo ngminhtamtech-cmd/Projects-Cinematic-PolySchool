@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Context path="/Website-ban-ve-xem-phim">
+    <!-- D13: Servlet 4.0 khong co API SameSite cho Cookie, nen JSESSIONID phai nho CookieProcessor
+         cua Tomcat. Dung "lax" chu khong "strict": voi "strict" thi khach bam link tu Google/Facebook
+         vao trang phim se bi coi nhu chua dang nhap o request dau tien.
+         Cookie XSRF-TOKEN chat hon (SameSite=Strict) va do CsrfFilter tu viet header. -->
+    <CookieProcessor className="org.apache.tomcat.util.http.Rfc6265CookieProcessor"
+                     sameSiteCookies="lax"/>
+</Context>

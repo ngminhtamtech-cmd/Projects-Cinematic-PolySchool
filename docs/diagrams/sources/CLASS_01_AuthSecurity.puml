@@ -1,0 +1,135 @@
+' =============================================================================
+'  CineBook — Class Diagram: Authentication & Security
+'  Nguồn: báo cáo khảo sát Servlet (web.xml) + Service/DAO. Chỉ hiển thị
+'  thuộc tính/phương thức public quan trọng — không sao chép toàn bộ cột DB.
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 CLASS_01_AuthSecurity.puml
+' =============================================================================
+@startuml CLASS_01_AuthSecurity
+title Class Diagram — Authentication & Security
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+class AuthFilter <<filter>> {
+  + doFilter(req, res, chain)
+  - requiredRole(path) : String
+}
+class "api.CsrfFilter" as CsrfFilter <<filter>> {
+  + doFilter(req, res, chain)
+  + {static} rotate(session)
+  + {static} writeCookie(resp, token)
+}
+
+class AuthServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+  - login(req, res)
+  - register(req, res)
+  - forgotPassword(req, res)
+  - resetPassword(req, res)
+  - verifyEmail(req, res)
+  - resendVerification(req, res)
+  - logout(req, res)
+}
+class "api.v1.AuthApiServlet" as AuthApiServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+}
+class AppealServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+}
+
+class LoginThrottleService <<service>> {
+  + check(email, ip) : Decision
+  + recordFailure(email, ip)
+  + recordSuccess(email, ip)
+  + applyProgressiveDelay(failures)
+}
+class AccountStateGuard <<service>> {
+  + evaluate(User) : Verdict
+  + {static} invalidate(userId)
+  + {static} clearCache()
+}
+class "service.auth.RefreshTokenService" as RefreshTokenService <<service>> {
+  + issue(userId, clientIp)
+  + rotate(presentedToken, clientIp)
+  + revokeAllForUser(userId, reason)
+  + revokeFamilyOf(presentedToken, reason)
+  + ownerOfUsableToken(presentedToken)
+}
+class PasswordResetService <<service>> {
+  + requestReset(email, ip, resetUrlBase)
+  + isTokenUsable(rawToken) : boolean
+  + consume(rawToken, newPwd, confirmPwd) : ResetResult
+}
+
+interface UserDAO <<repository>> {
+  + findByEmail(email)
+  + findById(id)
+  + create(user)
+  + updateProfile(user)
+  + changePassword(...)
+  + findAuthState(id)
+  + softDelete(id)
+  + updateLockStatus(...)
+}
+class JdbcUserDAO <<repository>> implements UserDAO
+
+interface LoginAttemptDAO <<repository>> {
+  + record(email, ip, success)
+  + summarizeByEmail(email)
+  + summarizeByIp(ip)
+  + clearForEmail(email)
+}
+class JdbcLoginAttemptDAO <<repository>> implements LoginAttemptDAO
+
+interface PasswordResetTokenDAO <<repository>> {
+  + create(...)
+  + consume(...)
+  + invalidateAllForUser(userId)
+  + findByHash(hash)
+}
+class JdbcPasswordResetTokenDAO <<repository>> implements PasswordResetTokenDAO
+
+class PasswordUtil <<util>> {
+  + {static} hash(raw) : String
+  + {static} matches(raw, hash) : boolean
+}
+class PasswordPolicy <<util>> {
+  + {static} validate(password) : boolean
+}
+class RoleUtil <<util>> {
+  + {static} isAtLeast(role, min) : boolean
+  + {static} displayName(role) : String
+}
+class "model.User" as User <<entity>> {
+  id, email, role, cinemaId
+  isLocked, loyaltyPoints, membershipTier
+}
+
+AuthFilter ..> AccountStateGuard : gọi evaluate()
+AuthFilter ..> RoleUtil
+CsrfFilter ..> AuthServlet : chặn POST thiếu token
+AuthServlet --> LoginThrottleService
+AuthServlet --> PasswordResetService
+AuthServlet --> AccountStateGuard
+AuthServlet --> UserDAO
+AuthApiServlet --> LoginThrottleService
+AuthApiServlet --> PasswordResetService
+AuthApiServlet --> RefreshTokenService
+AuthApiServlet --> AccountStateGuard
+AuthApiServlet --> UserDAO
+AppealServlet ..> "service.AdminService" : submitAppeal()
+LoginThrottleService --> LoginAttemptDAO
+AccountStateGuard --> UserDAO
+PasswordResetService --> UserDAO
+PasswordResetService --> PasswordResetTokenDAO
+PasswordResetService --> LoginAttemptDAO
+PasswordResetService ..> "service.EmailService" : sendPasswordReset()
+JdbcUserDAO ..> User
+AuthServlet ..> PasswordUtil
+AuthServlet ..> PasswordPolicy
+@enduml

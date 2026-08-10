@@ -1,0 +1,91 @@
+' =============================================================================
+'  CineBook — Class Diagram: Loyalty, Promotion & Refund
+'  Nguồn: báo cáo khảo sát Service/DAO. LoyaltyService tự viết SQL (không DAO
+'  riêng), dùng khoá WITH (UPDLOCK, ROWLOCK) — đã xác nhận qua khảo sát.
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 CLASS_05_LoyaltyPromotionRefund.puml
+' =============================================================================
+@startuml CLASS_05_LoyaltyPromotionRefund
+title Class Diagram — Loyalty, Promotion & Refund
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+class "controller.member.LoyaltyServlet" as LoyaltyServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+}
+class "controller.booking.TicketRefundAppealServlet" as TicketRefundAppealServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+}
+class PromotionServlet <<controller>> {
+  + doGet(req, res)
+}
+
+class LoyaltyService <<service>> {
+  + addPointsOnPayment(userId, total[, orderId])
+  + addPointsOnPayment(Connection, userId, total[, orderId])
+  + listRedeemablePromotionsForUser(userId)
+  + redeemVoucherWithPoints(userId, promoId[, redemptionKey])
+  + getUserVouchers(userId)
+  + getUserPointTransactions(userId)
+  + reversePointsOnRefund(Connection, userId[, orderId], amount, reason)
+  + recomputeTier(userId)
+  + {static} generateVoucherCode() : String
+}
+
+class RefundAppealPolicy <<util>> {
+  + {static} evaluate(OrderRecord) : Evaluation
+}
+enum "RefundAppealPolicy.Status" as RefundStatus {
+  ELIGIBLE
+  NOT_ENDED
+  EXPIRED
+  PENDING
+  REJECTED
+  REFUNDED
+  REDEEMED
+  INVALID_STATE
+}
+
+interface PromotionUsageDAO <<repository>> {
+  + findUsableVoucherId(...)
+  + findPromotionIdForVoucher(...)
+  + countForUser(promoId, userId)
+  + record(...)
+  + consumeVoucher(...)
+}
+class JdbcPromotionUsageDAO <<repository>> implements PromotionUsageDAO
+
+interface UserAppealDAO <<repository>> {
+  + createRefundAppeal(...)
+  + findPendingByTicketCode(code)
+  + findAll(status[, cinemaId])
+  + updateStatus(...)
+}
+class JdbcUserAppealDAO <<repository>> implements UserAppealDAO
+
+class "model.UserVoucher" as UserVoucher <<entity>>
+class "model.PointTransaction" as PointTransaction <<entity>>
+class "model.Promotion" as Promotion <<entity>>
+class "AppealResolutionResult" as AppealResolutionResult <<dto>>
+
+LoyaltyServlet --> LoyaltyService
+PromotionServlet ..> "service.BookingService" : resolvePromotion()
+TicketRefundAppealServlet --> "dao.OrderDAO"
+TicketRefundAppealServlet --> UserAppealDAO
+TicketRefundAppealServlet --> "dao.AdminNotificationDAO"
+TicketRefundAppealServlet ..> RefundAppealPolicy
+
+LoyaltyService --> PromotionUsageDAO
+LoyaltyService ..> UserVoucher
+LoyaltyService ..> PointTransaction
+LoyaltyService ..> Promotion
+RefundAppealPolicy ..> RefundStatus
+"service.AdminService" --> UserAppealDAO
+"service.AdminService" ..> AppealResolutionResult : resolveAppeal()
+"service.AdminService" ..> LoyaltyService : reversePointsOnRefund()\nkhi refundOrder()
+"service.BookingService" ..> LoyaltyService : addPointsOnPayment()\nkhi payOrder() thành công
+@enduml

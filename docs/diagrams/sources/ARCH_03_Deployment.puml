@@ -1,0 +1,68 @@
+' =============================================================================
+'  CineBook — Deployment Diagram
+'  Nguồn: ARCHITECTURE_DIAGRAM.puml (kiến trúc runtime), CLAUDE.md (build/test:
+'  mvn package chạy trên NetBeans-25, Next.js web/ chạy npm run dev port 3000,
+'  scripts/init-test-db.ps1 dựng CineBookDB_Test/CineBookIT_*), db.properties
+'  (SQL Server), service/EmailService (mail.mode=logfile|smtp).
+'
+'  Render: java -jar tools/plantuml.jar -tsvg -charset UTF-8 ARCH_03_Deployment.puml
+'          java -jar tools/plantuml.jar -tpng -charset UTF-8 -DPLANTUML_LIMIT_SIZE=16384 ARCH_03_Deployment.puml
+' =============================================================================
+@startuml ARCH_03_DeploymentDiagram
+title Deployment Diagram — CineBook
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam node {
+  BorderColor black
+  BackgroundColor white
+}
+
+node "Máy khách\n(Client Browser)" as Client {
+  artifact "Trình duyệt web\n(Chrome/Edge/Firefox)" as Browser
+}
+
+node "Máy chủ Web/App\n(Windows Server)" as AppServer {
+  node "Apache Tomcat 9.x\n(port 8080)" as Tomcat {
+    artifact "Website-ban-ve-xem-phim.war\n(Servlet + JSP, javax.servlet)" as War
+  }
+  node "Node.js runtime\n(port 3000)" as NodeRuntime {
+    artifact "Next.js 16 app (web/)\n(App Router, React 19)" as NextApp
+  }
+}
+
+node "Máy chủ Cơ sở dữ liệu\n(SQL Server instance)" as DbServer {
+  database "CineBookDB\n(38 bảng, HikariCP pool 10–20)" as MainDb
+  database "CineBookDB_Test /\nCineBookIT_<timestamp>_<random>\n(chỉ dùng cho mvn verify — không đụng DB thật)" as TestDb
+}
+
+node "Dịch vụ ngoài\n(External / mô phỏng)" as ExternalSvc {
+  artifact "SimulatedGateway\n(cổng thanh toán thẻ mô phỏng,\nkhông kết nối thật ra ngoài)" as Gateway
+  artifact "SMTP server\n(hoặc chế độ logfile\ncinebook-mail.log)" as Smtp
+}
+
+node "Lưu trữ tệp\n(File storage)" as FileStore {
+  artifact "uploads/\n(ảnh phim/rạp/combo, ImageUploadUtil)" as Uploads
+  artifact "backup/\n(bản sao lưu CSDL, AdminService.backupDatabase)" as Backup
+  artifact "logs/\n(cinebook-mail.log, Tomcat catalina.out)" as Logs
+}
+
+Browser --> Tomcat : HTTPS/HTTP\n(JSESSIONID, XSRF-TOKEN)
+Browser --> NodeRuntime : HTTPS/HTTP\n(Next.js SSR/CSR)
+NodeRuntime --> Tomcat : HTTP\n(BFF proxy /api/proxy/*,\nSSR fetch /api/v1/*)
+Tomcat --> MainDb : JDBC (SQL Server driver,\nHikariCP, encrypt=true)
+Tomcat ..> TestDb : chỉ khi chạy\nmvn verify (integration test)
+Tomcat --> Gateway : gọi nội bộ (in-process,\nkhông qua mạng — mô phỏng)
+Tomcat --> Smtp : SMTP (nếu mail.mode=smtp)
+Tomcat --> Uploads : đọc/ghi file
+Tomcat --> Backup : AdminService.backupDatabase()
+Tomcat --> Logs : ghi log ứng dụng
+
+note bottom of DbServer
+  Giao thức kết nối: JDBC SQL Server driver
+  (jdbc:sqlserver://host:1433;encrypt=true;
+  trustServerCertificate=true), cấu hình qua
+  db.properties (không commit giá trị thật).
+end note
+@enduml

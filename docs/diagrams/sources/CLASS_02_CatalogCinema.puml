@@ -1,0 +1,103 @@
+' =============================================================================
+'  CineBook — Class Diagram: Catalog & Cinema (Phim / Rạp / Suất chiếu công khai)
+'  Nguồn: báo cáo khảo sát Servlet + DAO. Không có Service riêng cho catalog —
+'  Servlet gọi thẳng DAO (đã xác nhận qua khảo sát mã nguồn).
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 CLASS_02_CatalogCinema.puml
+' =============================================================================
+@startuml CLASS_02_CatalogCinema
+title Class Diagram — Catalog & Cinema
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+class HomeServlet <<controller>> {
+  + doGet(req, res)
+}
+class FilmServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+}
+class CinemaServlet <<controller>> {
+  + doGet(req, res)
+}
+class ShowtimeServlet <<controller>> {
+  + doGet(req, res)
+}
+class "api.v1.FilmApiServlet" as FilmApiServlet <<controller>> {
+  + doGet(req, res)
+  + doPost(req, res)
+}
+class "api.v1.ShowtimeApiServlet" as ShowtimeApiServlet <<controller>> {
+  + doGet(req, res)
+}
+class "api.v1.CatalogApiServlet" as CatalogApiServlet <<controller>> {
+  + doGet(req, res)
+}
+
+interface FilmDAO <<repository>> {
+  + findFeatured()
+  + search(keyword, offset, limit)
+  + searchPublic(...)
+  + findById(id)
+  + countSearch(...)
+  + findByCinemaId(cinemaId)
+}
+class JdbcFilmDAO <<repository>> implements FilmDAO
+
+interface CinemaDAO <<repository>> {
+  + findAll(cityId)
+}
+class JdbcCinemaDAO <<repository>> implements CinemaDAO
+
+interface ShowtimeDAO <<repository>> {
+  + findByFilmAndCinema(...)
+  + findById(id)
+}
+class JdbcShowtimeDAO <<repository>> implements ShowtimeDAO
+
+class FilmAvailabilityPolicy <<util>> {
+  + {static} evaluate(Film) : Availability
+  + {static} isPubliclyVisible(Film) : boolean
+  + {static} isBookable(Film) : boolean
+  + {static} publicOnly(List<Film>) : List<Film>
+  + {static} daysUntilEnd(Film) : int
+}
+enum Availability {
+  COMING
+  SHOWING
+  EXPIRING_SOON
+  EXPIRED
+  WITHDRAWN
+}
+class "model.Film" as Film <<entity>>
+class "model.Cinema" as Cinema <<entity>>
+class "model.Showtime" as Showtime <<entity>>
+
+HomeServlet --> FilmDAO
+HomeServlet --> CinemaDAO
+HomeServlet --> ShowtimeDAO
+FilmServlet --> FilmDAO
+FilmServlet ..> FilmAvailabilityPolicy
+FilmServlet ..> "service.AdminService" : addComment(), reportComment(),\nlistCommentsByFilm()
+CinemaServlet --> CinemaDAO
+ShowtimeServlet --> ShowtimeDAO
+ShowtimeServlet --> FilmDAO
+ShowtimeServlet --> CinemaDAO
+ShowtimeServlet ..> FilmAvailabilityPolicy
+FilmApiServlet --> FilmDAO
+FilmApiServlet --> ShowtimeDAO
+FilmApiServlet ..> FilmAvailabilityPolicy
+ShowtimeApiServlet --> ShowtimeDAO
+ShowtimeApiServlet ..> "service.BookingService" : findShowtime(),\nbookingEligibility(), getSeatMap()
+CatalogApiServlet --> CinemaDAO
+CatalogApiServlet ..> "service.AdminService" : cityOptions()
+CatalogApiServlet ..> "service.BookingService" : findActiveCombos()
+
+JdbcFilmDAO ..> Film
+JdbcCinemaDAO ..> Cinema
+JdbcShowtimeDAO ..> Showtime
+FilmAvailabilityPolicy ..> Availability
+FilmAvailabilityPolicy ..> Film
+@enduml

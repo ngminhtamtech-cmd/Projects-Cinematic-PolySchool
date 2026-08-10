@@ -1,0 +1,65 @@
+' =============================================================================
+'  CineBook — Use Case chi tiết: Vận hành Quầy vé & Quản lý Rạp (Staff & Manager)
+'  Transcribe 1-1 từ usecase/usecase_nhan_vien_va_quan_ly.png (ảnh gốc đã duyệt).
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 USECASE_02_NhanVienVaQuanLy.puml
+' =============================================================================
+@startuml USECASE_02_NhanVienVaQuanLy
+title HỆ THỐNG CINEBOOK — VẬN HÀNH QUẦY VÉ & QUẢN LÝ RẠP\n(Staff & Manager)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+left to right direction
+
+actor "Nhân viên quầy vé\n(staff)" as Staff
+actor "Quản lý rạp\n(manager)" as Manager
+
+rectangle "HỆ THỐNG CINEBOOK — VẬN HÀNH QUẦY VÉ & QUẢN LÝ RẠP" {
+  usecase "Đăng nhập" as UC_Login
+
+  usecase "Tra cứu vé bằng Mã / QR Code" as UC_LookupTicket
+  usecase "Soát vé (Check-in) vào phòng" as UC_CheckIn
+  usecase "Thu tiền mặt trực tiếp tại quầy" as UC_CashCollect
+
+  usecase "Dashboard rạp (10 chỉ số)" as UC_Dashboard
+  usecase "Quản lý Danh mục Phim tại rạp" as UC_FilmCatalog
+  usecase "Quản lý Phòng chiếu & Ghế" as UC_RoomSeat
+  usecase "Tạo Suất chiếu hàng loạt" as UC_BatchShowtime
+  usecase "Quản lý Nhân viên quầy vé" as UC_StaffMgmt
+  usecase "Kiểm duyệt Bình luận phim" as UC_CommentModeration
+  usecase "Xử lý Đơn Kháng cáo hoàn vé" as UC_RefundAppeal
+  usecase "Quản lý Menu Combo bắp nước" as UC_ComboMgmt
+  usecase "Duyệt / Từ chối Hoàn tiền vé" as UC_RefundApprove
+  usecase "Xem & Xuất Báo cáo Doanh thu" as UC_Report
+}
+
+Staff -- UC_LookupTicket
+Staff -- UC_CheckIn
+Staff -- UC_CashCollect
+
+Manager -- UC_Dashboard
+Manager -- UC_FilmCatalog
+Manager -- UC_RoomSeat
+Manager -- UC_BatchShowtime
+Manager -- UC_StaffMgmt
+Manager -- UC_CommentModeration
+Manager -- UC_RefundAppeal
+Manager -- UC_ComboMgmt
+Manager -- UC_RefundApprove
+Manager -- UC_Report
+
+UC_LookupTicket ..> UC_Login : <<include>>
+UC_CheckIn ..> UC_Login : <<include>>
+UC_CashCollect ..> UC_Login : <<include>>
+UC_Dashboard ..> UC_Login : <<include>>
+UC_FilmCatalog ..> UC_Login : <<include>>
+UC_RoomSeat ..> UC_Login : <<include>>
+UC_BatchShowtime ..> UC_Login : <<include>>
+UC_StaffMgmt ..> UC_Login : <<include>>
+UC_CommentModeration ..> UC_Login : <<include>>
+UC_RefundAppeal ..> UC_Login : <<include>>
+UC_ComboMgmt ..> UC_Login : <<include>>
+UC_RefundApprove ..> UC_Login : <<include>>
+UC_Report ..> UC_Login : <<include>>
+
+@enduml

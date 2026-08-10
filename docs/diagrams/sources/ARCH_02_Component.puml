@@ -1,0 +1,106 @@
+' =============================================================================
+'  CineBook — Component Diagram theo module nghiệp vụ
+'  Nguồn: báo cáo khảo sát Servlet/Service/DAO (xem registry.md). Nhóm theo
+'  9 module: Authentication, Catalog, Booking, Payment, Staff, Manager/Admin,
+'  Loyalty, Notification, Database.
+'
+'  Render: java -jar tools/plantuml.jar -tsvg -charset UTF-8 ARCH_02_Component.puml
+'          java -jar tools/plantuml.jar -tpng -charset UTF-8 -DPLANTUML_LIMIT_SIZE=16384 ARCH_02_Component.puml
+' =============================================================================
+@startuml ARCH_02_ComponentDiagram
+title Component Diagram — CineBook (theo module nghiệp vụ)
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam component {
+  BorderColor black
+  BackgroundColor white
+}
+
+component "Authentication\n& Security" as C_Auth {
+  [AuthServlet]
+  [AuthApiServlet]
+  [AuthFilter]
+  [CsrfFilter]
+  [LoginThrottleService]
+  [AccountStateGuard]
+  [RefreshTokenService]
+  [PasswordResetService]
+}
+
+component "Catalog\n(Phim/Rạp/Suất chiếu)" as C_Catalog {
+  [FilmServlet]
+  [CinemaServlet]
+  [ShowtimeServlet]
+  [FilmApiServlet]
+  [ShowtimeApiServlet]
+  [CatalogApiServlet]
+  [FilmAvailabilityPolicy]
+}
+
+component "Booking\n(Đặt vé & Giữ ghế)" as C_Booking {
+  [BookingPageServlet]
+  [OrderServlet]
+  [ShowtimeSeatServlet]
+  [OrderApiServlet]
+  [BookingService]
+  [BookingStateMachine]
+  [BookingTransitionService]
+  [BookingCommandStore]
+  [HoldSweeper]
+}
+
+component "Payment\n(Thanh toán)" as C_Payment {
+  [PaymentGateway]
+  [SimulatedGateway]
+  [InvoiceService]
+}
+
+component "Staff\n(Quầy vé)" as C_Staff {
+  [StaffPortalServlet]
+  [StaffApiServlet]
+  [StaffService]
+}
+
+component "Manager / Admin" as C_Admin {
+  [ManagerPortalServlet]
+  [SystemPortalServlet]
+  [AdminDashboardServlet]
+  [AdminService]
+}
+
+component "Loyalty\n& Promotion" as C_Loyalty {
+  [LoyaltyServlet]
+  [PromotionServlet]
+  [LoyaltyService]
+  [RefundAppealPolicy]
+}
+
+component "Notification\n& Audit & System" as C_Notif {
+  [PolicyDocumentService]
+  [PersonalDataService]
+  [EmailService]
+}
+
+database "Database\n(DAO + SQL Server)" as C_Db {
+  [16 DAO interface / JdbcXxxImpl]
+  [SQL Server CineBookDB]
+}
+
+C_Auth ..> C_Db : UserDAO, RefreshTokens,\nPasswordResetTokens, LoginAttempts
+C_Catalog ..> C_Db : FilmDAO, CinemaDAO, ShowtimeDAO
+C_Booking ..> C_Db : ShowtimeSeatDAO, ComboFoodDAO,\nPromotionDAO, OrderDAO
+C_Booking ..> C_Payment : payOrder()
+C_Booking ..> C_Loyalty : LoyaltyService.addPointsOnPayment()
+C_Payment ..> C_Db : InvoiceDAO
+C_Staff ..> C_Admin : uỷ quyền ghi\n(redeemTicket, markCounterOrderPaid)
+C_Admin ..> C_Db : SQL trực tiếp (Film/Cinema/Room/\nShowtime/Promotion/Combo/Report/Audit)\n+ OrderDAO, UserDAO, UserAppealDAO
+C_Admin ..> C_Notif : AdminNotificationDAO,\nNotificationRecipientDAO
+C_Loyalty ..> C_Db : PromotionUsageDAO
+C_Notif ..> C_Db : PolicyDocumentDAO
+C_Auth ..> C_Notif : EmailService (verify, reset)
+C_Booking ..> C_Notif : EmailService (ticket, nhắc quầy)
+C_Booking ..> C_Admin : HoldSweeper dùng chung\ntransition kernel với AdminService.refundOrder
+
+@enduml

@@ -1,0 +1,118 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--ink);
+    background: var(--color-gray-50);
+    font-family: "Be Vietnam Pro", Inter, Arial, Helvetica, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+body.public-page {
+    padding-top: var(--header-height);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+body.public-page > main,
+body.public-page .public-main {
+    flex: 1 0 auto;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+img {
+    display: block;
+    max-width: 100%;
+}
+
+h1,
+h2,
+h3,
+h4 {
+    margin: 0;
+    font-family: Montserrat, "Be Vietnam Pro", Arial, sans-serif;
+    line-height: 1.2;
+    letter-spacing: 0;
+}
+
+p {
+    margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    min-height: 46px;
+    border: 1px solid #d6dae3;
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    color: var(--ink);
+    background: #ffffff;
+    outline: 0;
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px rgba(247, 148, 30, .16);
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.lead-copy {
+    font-size: 17px;
+    line-height: 1.75;
+}
+
+.container {
+    width: min(var(--container), calc(100% - 32px));
+    margin-inline: auto;
+}
+
+.public-main {
+    padding-bottom: 56px;
+}

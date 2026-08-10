@@ -1,0 +1,105 @@
+' =============================================================================
+'  CineBook — Class Diagram: Notification, Audit & System Settings
+'  Nguồn: báo cáo khảo sát Service/DAO.
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 CLASS_06_NotificationAuditSystem.puml
+' =============================================================================
+@startuml CLASS_06_NotificationAuditSystem
+title Class Diagram — Notification, Audit & System Settings
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+interface AdminNotificationDAO <<repository>> {
+  + findAll() / findUnread() / countUnread()
+  + markAsRead(id) / markAllAsRead()
+  + createNotification(...)
+  + resolveByTarget([Connection,] ...)
+  + existsNotificationForTarget(...)
+}
+class JdbcAdminNotificationDAO <<repository>> implements AdminNotificationDAO
+
+interface NotificationRecipientDAO <<repository>> {
+  + markRead(...) / markAllRead(...)
+  + readNotificationIds(userId)
+  + deliver(Connection, ...)
+  + deleteOrphans()
+}
+class JdbcNotificationRecipientDAO <<repository>> implements NotificationRecipientDAO
+
+interface UserNotificationDAO <<repository>> {
+  + create(Connection, ...)
+  + resolveRecipients(Connection, ...)
+  + inbox(userId, unreadOnly)
+}
+class JdbcUserNotificationDAO <<repository>> implements UserNotificationDAO
+
+interface PolicyDocumentDAO <<repository>> {
+  + findPublished(key)
+  + findLatestDraft(key)
+  + saveDraft(...)
+  + publish(...)
+}
+class JdbcPolicyDocumentDAO <<repository>> implements PolicyDocumentDAO
+
+class PolicyDocumentService <<service>> {
+  + publishedRefundPolicy()
+  + draftRefundPolicy()
+  + saveDraft(...)
+  + publish(...)
+}
+
+class PersonalDataService <<service>> {
+  + exportForUser(userId) : Map
+  + anonymize(userId, originalEmail)
+}
+
+class EmailService <<service>> {
+  + sendVerification(...)
+  + createAndSendVerification(...)
+  + verifyEmail(token)
+  + resendVerification(...) : ResendOutcome
+  + sendTicket(order)
+  + sendShowtimeCancellation(...)
+  + sendPasswordReset(...)
+  + sendCounterReminder(order)
+  + {static} renderTemplate(name, vars)
+  + {static} shutdown()
+}
+
+class "config.AppContextListener" as AppContextListener <<listener>> {
+  + contextInitialized(event)
+  + contextDestroyed(event)
+  - startHoldSweeper()
+  - stopHoldSweeper()
+}
+class "config.SettingsReader" as SettingsReader <<util>> {
+  + {static} getInt(key, default) : int
+}
+class "config.SecuritySettings" as SecuritySettings <<util>> {
+  + maxLoginAttempts() / lockMinutes()
+  + passwordMinLength() / resetTokenMinutes()
+}
+class "util.BusinessClock" as BusinessClock <<util>> {
+  + {static} now() : LocalDateTime
+}
+
+AppContextListener --> "service.HoldSweeper" : khởi động ScheduledExecutorService\n(fixedDelay 30s, initialDelay 20s)
+AppContextListener ..> "config.DBConnection" : verifySchemaFailFast()
+
+PolicyDocumentService --> PolicyDocumentDAO
+"service.AdminService" --> AdminNotificationDAO
+"service.AdminService" --> NotificationRecipientDAO
+"service.AdminService" --> UserNotificationDAO
+"service.AdminService" ..> "config.DBConnection" : audit log / report SQL trực tiếp
+"controller.auth.AppealServlet" ..> "service.AdminService"
+"controller.ProfileServlet" --> PersonalDataService
+PersonalDataService ..> "util.AccountStateGuard" : invalidate() sau anonymize()
+"service.BookingService" ..> EmailService : sendTicket()
+"service.HoldSweeper" ..> EmailService : sendCounterReminder(),\nsendShowtimeCancellation()
+"service.PasswordResetService" ..> EmailService : sendPasswordReset()
+"service.FilmAvailabilityPolicy" ..> SettingsReader
+"service.RefundAppealPolicy" ..> SettingsReader
+"service.LoginThrottleService" ..> SecuritySettings
+@enduml

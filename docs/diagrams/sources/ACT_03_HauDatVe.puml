@@ -1,0 +1,185 @@
+' =============================================================================
+'  CineBook — Activity Diagram: Check-in vé bằng QR/mã · Huỷ/Hoàn tiền ·
+'  Áp mã khuyến mãi & Loyalty/Voucher
+'  Render: java -jar tools/plantuml.jar -t[svg|png] -charset UTF-8 ACT_03_HauDatVe.puml
+' =============================================================================
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ACT 8 — Check-in vé bằng QR/mã                                            ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ACT_08_CheckinVeBangQR
+title Activity — Check-in vé bằng QR/mã
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Nhân viên quầy|
+start
+:quét mã QR trên vé khách\n(hoặc nhập tay mã vé);
+
+|Hệ thống (StaffPortalServlet)|
+:QrCodeUtil.verifiedTicketCode\n(xác minh chữ ký HMAC-SHA256);
+if (Chữ ký hợp lệ?) then ([Không hợp lệ/giả mạo])
+  |Giao diện (JSP)|
+  :"Mã vé không hợp lệ";
+  stop
+else ([Hợp lệ])
+endif
+:ScopeUtil.isOutOfCinemaScope(actor, order);
+if (Đúng phạm vi cụm rạp?) then ([Ngoài phạm vi])
+  |Giao diện (JSP)|
+  :"Vé không thuộc rạp bạn phụ trách";
+  stop
+else ([Đúng phạm vi])
+endif
+:AdminService.redeemTicket(ticketCode, actor);
+if (CheckinStatus hiện tại?) then ([đã checked_in — quét lại])
+  |Giao diện (JSP)|
+  :cảnh báo đỏ "VÉ ĐÃ SOÁT —\nNGHI VẤN GIAN LẬN";
+  |Nhân viên quầy|
+  :từ chối cho vào phòng;
+  stop
+else ([chưa checked_in])
+endif
+if (PaymentStatus=paid & còn hạn suất chiếu?) then ([Chưa thanh toán/hết hạn])
+  |Giao diện (JSP)|
+  :"Vé chưa thanh toán\nhoặc đã hết hạn sử dụng";
+  stop
+else ([Hợp lệ])
+  :UPDATE OrderStatus=redeemed,\nCheckinStatus=checked_in,\nCheckinByStaffId, RedeemedAt=GETDATE();
+  |Giao diện (JSP)|
+  :đèn xanh "Soát vé thành công";
+endif
+
+|Nhân viên quầy|
+:cho khách vào phòng chiếu;
+stop
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ACT 9 — Huỷ đơn / Yêu cầu hoàn tiền                                       ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ACT_09_HuyDonHoanTien
+title Activity — Gửi yêu cầu hoàn tiền & Manager duyệt/từ chối
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Thành viên|
+start
+:nhập mã vé + lý do tại\n/ticket-refund-appeal;
+
+|Hệ thống (TicketRefundAppealServlet)|
+:RefundAppealPolicy.evaluate(order);
+if (status = ELIGIBLE?) then ([Không —\nNOT_ENDED / EXPIRED / PENDING /\nREJECTED / REFUNDED / REDEEMED /\nINVALID_STATE])
+  |Giao diện (JSP)|
+  :hiển thị lý do từ chối tương ứng\n(chưa qua giờ chiếu / quá 24h hạn\nkháng nghị / đã xử lý trước đó...);
+  stop
+else ([ELIGIBLE])
+  |Hệ thống (TicketRefundAppealServlet)|
+  :UserAppealDAO.createRefundAppeal\n(Status=pending);
+  :AdminNotificationDAO.createNotification\n(target = cụm rạp);
+  |Giao diện (JSP)|
+  :"Yêu cầu đã gửi, chờ rạp duyệt";
+endif
+
+|Quản lý rạp|
+:xem hàng chờ /admin/appeals\n(đã lọc theo CinemaId của actor);
+if (Quyết định?) then ([Từ chối])
+  :nhập lý do từ chối;
+  |Hệ thống (AdminService)|
+  :rejectRefund(appealId, actor, reason);
+  :UserAppeals.Status=rejected;
+  |Thành viên|
+  :nhận thông báo bị từ chối + lý do;
+  stop
+else ([Duyệt hoàn tiền])
+  |Hệ thống (AdminService)|
+  :ScopeUtil.assertCinemaScope(actor, order);
+  :BEGIN TRAN;
+  :Orders: OrderStatus=cancelled,\nPaymentStatus=refunded,\nRefundedBy, RefundedAt;
+  :INSERT RefundTransactions\n(UNIQUE OrderId — tối đa 1 lần/đơn);
+  :LoyaltyService.reversePointsOnRefund;
+  :COMMIT TRAN;
+  :InvoiceService.issueRefundAdjustment;
+  :UserAppeals.Status=approved;
+  |Thành viên|
+  :nhận thông báo đã hoàn tiền;
+  stop
+endif
+@enduml
+
+
+' ╔═══════════════════════════════════════════════════════════════════════════╗
+' ║  ACT 10 — Áp mã khuyến mãi & Loyalty/Voucher                               ║
+' ╚═══════════════════════════════════════════════════════════════════════════╝
+@startuml ACT_10_KhuyenMaiLoyaltyVoucher
+title Activity — Áp mã khuyến mãi & Đổi điểm Loyalty lấy Voucher
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam ArrowThickness 1
+skinparam activity {
+  BorderColor black
+  BackgroundColor white
+  DiamondBorderColor black
+}
+
+|Thành viên|
+start
+:nhập mã khuyến mãi lúc đặt vé;
+
+|Hệ thống (BookingService)|
+:resolvePromotion(code, userId, tier);
+if (Mã hợp lệ?\n(còn hạn, đúng TargetTier,\nchưa vượt UsageLimit/PerUserLimit)) then ([Không hợp lệ])
+  |Giao diện (JSP)|
+  :hiển thị lý do không áp dụng được;
+else ([Hợp lệ])
+  |Giao diện (JSP)|
+  :hiển thị số tiền được giảm;
+endif
+note right: Mã chỉ thực sự trừ UsageLimit\nkhi payOrder() commit (xem ACT_05).
+
+|Thành viên|
+:vào /member/loyalty xem điểm thưởng;
+
+|Hệ thống (LoyaltyService)|
+:listRedeemablePromotionsForUser(userId);
+
+|Thành viên|
+:chọn voucher muốn đổi, bấm "Đổi điểm";
+
+|Hệ thống (LoyaltyService)|
+:BEGIN TRAN;
+:SELECT Users WITH (UPDLOCK, ROWLOCK);
+if (Đủ điểm (LoyaltyPoints >= PointsRequired)?) then ([Không đủ])
+  :ROLLBACK;
+  |Giao diện (JSP)|
+  :"Không đủ điểm để đổi";
+  stop
+else ([Đủ điểm])
+  :UPDATE LoyaltyPoints -= PointsRequired;
+  :INSERT PointTransactions (Type=REDEEM);
+  :INSERT UserVouchers (code mới, IsUsed=0);
+  :COMMIT TRAN;
+  |Giao diện (JSP)|
+  :"Đổi voucher thành công: mã <code>";
+endif
+
+|Thành viên|
+:lưu mã voucher để dùng ở lần đặt vé sau;
+stop
+@enduml
